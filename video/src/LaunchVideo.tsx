@@ -38,7 +38,25 @@ export const LaunchVideo: React.FC = () => {
       />
 
       {/* ── Audio ── */}
-      <Audio src={staticFile("bg-music-v5.mp3")} volume={0.18} />
+      <Audio
+        src={staticFile("bg-music-v5.mp3")}
+        volume={(f) => {
+          // Intro: starts at 0.14, ducks to 0.06 when voices play, rises at end
+          // Voices are roughly at: 130-260, 395-560, 635-740
+          const isVoicePlaying =
+            (f >= 125 && f <= 270) ||
+            (f >= 390 && f <= 565) ||
+            (f >= 630 && f <= 745);
+          const base = isVoicePlaying ? 0.06 : 0.12;
+          // Intro bump (0-105)
+          if (f < 105) return 0.14;
+          // Outro bump (780-900)
+          if (f >= 780) return interpolate(f, [780, 810, 900], [0.12, 0.16, 0.14], {
+            extrapolateLeft: "clamp", extrapolateRight: "clamp",
+          });
+          return base;
+        }}
+      />
 
       {/* Soft whooshes on scene transitions */}
       <Sequence from={100}><Audio src={staticFile("whoosh.mp3")} volume={0.12} /></Sequence>
