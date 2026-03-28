@@ -38,7 +38,7 @@ export const LaunchVideo: React.FC = () => {
       />
 
       {/* ── Audio ── */}
-      <Audio src={staticFile("bg-music-v3.mp3")} volume={0.16} />
+      <Audio src={staticFile("bg-music-v4.mp3")} volume={0.2} />
 
       {/* Soft whooshes on scene transitions */}
       <Sequence from={100}><Audio src={staticFile("whoosh.mp3")} volume={0.12} /></Sequence>
@@ -58,7 +58,7 @@ export const LaunchVideo: React.FC = () => {
 
       {/* Scene 3: Notes */}
       <Sequence from={625}><Audio src={staticFile("ping.mp3")} volume={0.22} /></Sequence>
-      <Sequence from={635}><Audio src={staticFile("voice-notes-v3.mp3")} volume={0.7} /></Sequence>
+      <Sequence from={635}><Audio src={staticFile("voice-notes-female.mp3")} volume={0.7} /></Sequence>
       <Sequence from={730}><Audio src={staticFile("done.mp3")} volume={0.18} /></Sequence>
 
       {/* ── Visual scenes ── */}
@@ -102,7 +102,7 @@ export const LaunchVideo: React.FC = () => {
           placeholder=""
           dictatedText="Follow up with design team about the new onboarding flow before Friday"
           totalFrames={170}
-          voiceDurationFrames={110}
+          voiceDurationFrames={106}
           caption="jot down a reminder"
         />
       </Sequence>
