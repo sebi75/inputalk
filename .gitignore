@@ -1,0 +1,17 @@
+.DS_Store
+.env
+node_modules/
+
+# macOS app
+macos/.build/
+macos/Packages/
+macos/dist/
+macos/.swiftpm/
+macos/xcuserdata/
+macos/DerivedData/
+*.xcodeproj
+
+# Web
+web/.next/
+web/.vercel/
+web/node_modules/
