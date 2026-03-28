@@ -1,29 +1,42 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Syne, DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+const syne = Syne({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-syne",
+  display: "swap",
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm",
+  display: "swap",
+});
+
+const jetbrains = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Inputalk - Free Voice-to-Text for macOS",
+  title: "Inputalk — local voice-to-text for macOS",
   description:
-    "Dictate anywhere on your Mac. Hold Fn to talk, release to paste. Powered by local AI — completely free, no API keys, total privacy.",
+    "Hold Fn, speak, release. Text appears at your cursor. Whisper AI runs on your Mac. Open source, no cloud, no API keys.",
   openGraph: {
-    title: "Inputalk - Free Voice-to-Text for macOS",
+    title: "Inputalk — local voice-to-text for macOS",
     description:
-      "Dictate anywhere on your Mac. Hold Fn to talk, release to paste. Powered by local AI.",
+      "Hold Fn, speak, release. Text appears at your cursor. Whisper AI runs on your Mac.",
     url: "https://inputalk.com",
     siteName: "Inputalk",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Inputalk - Free Voice-to-Text for macOS",
+    title: "Inputalk — local voice-to-text for macOS",
     description:
-      "Dictate anywhere on your Mac. Hold Fn to talk, release to paste. Powered by local AI.",
+      "Hold Fn, speak, release. Text appears at your cursor. Whisper AI runs on your Mac.",
   },
 };
 
@@ -33,8 +46,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="bg-[#0a0a0b] text-white antialiased">{children}</body>
+    <html
+      lang="en"
+      className={`${syne.variable} ${dmSans.variable} ${jetbrains.variable}`}
+    >
+      <body className="bg-[#08080a] text-[#a1a1aa] antialiased font-[family-name:var(--font-dm)]">
+        {children}
+      </body>
     </html>
   );
 }
