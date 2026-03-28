@@ -36,29 +36,51 @@ export const LaunchVideo: React.FC = () => {
         }}
       />
 
-      {/* Background music — uncomment when audio file is available */}
-      {/* <Audio src={staticFile("bg-music.mp3")} volume={0.15} /> */}
+      {/* Background music */}
+      <Audio src={staticFile("bg-music.mp3")} volume={0.18} />
+
+      {/* Ping sounds when recording starts */}
+      <Sequence from={127}>
+        <Audio src={staticFile("ping.mp3")} volume={0.4} />
+      </Sequence>
+      <Sequence from={387}>
+        <Audio src={staticFile("ping.mp3")} volume={0.35} />
+      </Sequence>
+      <Sequence from={627}>
+        <Audio src={staticFile("ping.mp3")} volume={0.35} />
+      </Sequence>
+
+      {/* Done chimes when transcription completes */}
+      <Sequence from={270}>
+        <Audio src={staticFile("done.mp3")} volume={0.3} />
+      </Sequence>
+      <Sequence from={510}>
+        <Audio src={staticFile("done.mp3")} volume={0.25} />
+      </Sequence>
+      <Sequence from={720}>
+        <Audio src={staticFile("done.mp3")} volume={0.25} />
+      </Sequence>
 
       {/* Scene 1: Cold open — 0-105 frames (0-3.5s) */}
       <Sequence from={0} durationInFrames={105}>
         <SceneColdOpen />
       </Sequence>
 
-      {/* Scene 2: Slack — 105-360 frames (3.5-12s) */}
-      <Sequence from={105} durationInFrames={255}>
+      {/* Scene 2: Slack — 105-370 frames (3.5-12.3s) */}
+      <Sequence from={105} durationInFrames={265}>
         <SceneUseCase
           app="slack"
           appLabel="Slack"
           topLine="📍 #engineering"
           placeholder="Message #engineering"
           dictatedText="Hey, can we push the standup to 3pm? I'm wrapping up the auth fix."
-          totalFrames={255}
+          totalFrames={265}
           zoomTarget="widget"
         />
       </Sequence>
 
-      {/* Scene 3: VS Code — 360-600 frames (12-20s) */}
-      <Sequence from={360} durationInFrames={240}>
+      {/* Scene 3: VS Code — 370-610 frames (12.3-20.3s) */}
+      <Sequence from={370} durationInFrames={240}>
         <SceneUseCase
           app="vscode"
           appLabel="VS Code"
@@ -67,20 +89,20 @@ export const LaunchVideo: React.FC = () => {
           dictatedText="// TODO: refactor to validate JWT claims before granting access"
           totalFrames={240}
           codeContext
-          zoomTarget="text"
+          zoomTarget="widget"
         />
       </Sequence>
 
-      {/* Scene 4: Notes — 600-780 frames (20-26s) */}
-      <Sequence from={600} durationInFrames={180}>
+      {/* Scene 4: Notes — 610-780 frames (20.3-26s) */}
+      <Sequence from={610} durationInFrames={170}>
         <SceneUseCase
           app="notes"
           appLabel="Notes"
           topLine="Meeting notes — March 28"
           placeholder=""
           dictatedText="Follow up with design team about the new onboarding flow before Friday"
-          totalFrames={180}
-          zoomTarget="none"
+          totalFrames={170}
+          zoomTarget="widget"
         />
       </Sequence>
 
@@ -212,7 +234,6 @@ const SceneUseCase: React.FC<UseCaseProps> = ({
 }) => {
   const frame = useCurrentFrame();
 
-  // Pacing — more breathing room
   const fadeIn = interpolate(frame, [0, 14], [0, 1], {
     extrapolateRight: "clamp",
   });
@@ -223,21 +244,21 @@ const SceneUseCase: React.FC<UseCaseProps> = ({
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
-  // Timeline
+  // Timeline — listening takes most of the scene, typing is fast
   const fnPressFrame = 15;
   const recordStart = 22;
-  const recordEnd = Math.floor(totalFrames * 0.35);
+  const recordEnd = Math.floor(totalFrames * 0.58);   // 58% = long listening
   const transcribeStart = recordEnd + 4;
-  const transcribeEnd = recordEnd + 20;
+  const transcribeEnd = recordEnd + 18;
   const typeStart = transcribeEnd + 2;
-  const typeEnd = totalFrames - 24;
+  const typeEnd = Math.min(typeStart + 30, totalFrames - 20);  // fast typing (~1s)
 
   const isFnPressed = frame >= fnPressFrame && frame < recordEnd + 6;
   const isRecording = frame >= recordStart && frame < recordEnd;
   const isTranscribing = frame >= transcribeStart && frame < transcribeEnd;
-  const isDone = frame >= transcribeEnd && frame < typeEnd + 14;
+  const isDone = frame >= transcribeEnd && frame < totalFrames - 14;
 
-  // Typing animation
+  // Fast typing
   const charsVisible = Math.floor(
     interpolate(frame, [typeStart, typeEnd], [0, dictatedText.length], {
       extrapolateLeft: "clamp",
@@ -245,81 +266,29 @@ const SceneUseCase: React.FC<UseCaseProps> = ({
     })
   );
 
-  // Smooth zoom — gradually zoom into the scene during recording,
-  // then zoom further toward the target on completion
-  const zoomBase = interpolate(frame, [0, recordEnd], [1, 1.04], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: Easing.inOut(Easing.cubic),
-  });
+  // Zoom toward the widget during listening, then ease back on typing
+  const zoomToWidget = interpolate(
+    frame,
+    [recordStart, recordStart + 40, recordEnd, typeStart + 10, totalFrames - 20],
+    [1, 1.22, 1.22, 1.05, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) }
+  );
+  const panToWidget = interpolate(
+    frame,
+    [recordStart, recordStart + 40, recordEnd, typeStart + 10, totalFrames - 20],
+    [0, -110, -110, -15, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) }
+  );
 
-  let zoomPeak = 1.04;
-  let translateX = 0;
-  let translateY = 0;
-
-  if (zoomTarget === "widget" && frame > transcribeStart) {
-    // Zoom toward bottom center (where widget is)
-    zoomPeak = interpolate(
-      frame,
-      [transcribeStart, transcribeEnd + 20],
-      [1.04, 1.18],
-      { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) }
-    );
-    translateY = interpolate(
-      frame,
-      [transcribeStart, transcribeEnd + 20],
-      [0, -80],
-      { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) }
-    );
-    // Ease back out
-    if (frame > typeStart + 30) {
-      zoomPeak = interpolate(
-        frame,
-        [typeStart + 30, typeEnd],
-        [1.18, 1.02],
-        { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) }
-      );
-      translateY = interpolate(
-        frame,
-        [typeStart + 30, typeEnd],
-        [-80, 0],
-        { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) }
-      );
-    }
-  }
-
-  if (zoomTarget === "text" && frame > typeStart) {
-    // Zoom toward the text area
-    zoomPeak = interpolate(
-      frame,
-      [typeStart, typeStart + 40],
-      [1.04, 1.14],
-      { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) }
-    );
-    translateY = interpolate(
-      frame,
-      [typeStart, typeStart + 40],
-      [0, 20],
-      { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) }
-    );
-    if (frame > typeEnd - 20) {
-      zoomPeak = interpolate(
-        frame,
-        [typeEnd - 20, typeEnd + 10],
-        [1.14, 1.02],
-        { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.inOut(Easing.cubic) }
-      );
-    }
-  }
-
-  const zoom = frame > transcribeStart ? zoomPeak : zoomBase;
+  const zoom = zoomToWidget;
+  const translateY = panToWidget;
 
   return (
     <AbsoluteFill
       className="flex flex-col items-center justify-center"
       style={{
         opacity: fadeIn * fadeOut,
-        transform: `scale(${zoom}) translate(${translateX}px, ${translateY}px)`,
+        transform: `scale(${zoom}) translateY(${translateY}px)`,
       }}
     >
       {/* App label */}
