@@ -38,7 +38,7 @@ export const LaunchVideo: React.FC = () => {
       />
 
       {/* ── Audio ── */}
-      <Audio src={staticFile("bg-music-v4.mp3")} volume={0.2} />
+      <Audio src={staticFile("bg-music-v5.mp3")} volume={0.18} />
 
       {/* Soft whooshes on scene transitions */}
       <Sequence from={100}><Audio src={staticFile("whoosh.mp3")} volume={0.12} /></Sequence>
