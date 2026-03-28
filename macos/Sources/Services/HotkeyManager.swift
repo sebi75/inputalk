@@ -19,9 +19,16 @@ class HotkeyManager {
     /// Keep the state object alive for the C callback
     private var stateRef: AnyObject?
 
+    /// Saved original Fn key usage type so we can restore on quit
+    private var originalFnUsageType: Int?
+
     func start() {
         guard AXIsProcessTrusted() else { return }
         stop()
+
+        // Disable the system Globe key behavior (emoji picker / input switching)
+        // by setting AppleFnUsageType to 0 ("Do Nothing"). We restore on stop().
+        disableSystemFnBehavior()
 
         let state = FnKeyState()
         state.manager = self
@@ -62,6 +69,25 @@ class HotkeyManager {
         eventTap = nil
         runLoopSource = nil
         stateRef = nil
+
+        restoreSystemFnBehavior()
+    }
+
+    // MARK: - System Fn Key Override
+
+    /// Disable macOS Globe key system action by writing AppleFnUsageType = 0
+    private func disableSystemFnBehavior() {
+        let defaults = UserDefaults(suiteName: "com.apple.HIToolbox")
+        originalFnUsageType = defaults?.integer(forKey: "AppleFnUsageType")
+        defaults?.set(0, forKey: "AppleFnUsageType")
+    }
+
+    /// Restore the user's original Globe key behavior
+    private func restoreSystemFnBehavior() {
+        guard let original = originalFnUsageType else { return }
+        let defaults = UserDefaults(suiteName: "com.apple.HIToolbox")
+        defaults?.set(original, forKey: "AppleFnUsageType")
+        originalFnUsageType = nil
     }
 
     func cancelRecording() {

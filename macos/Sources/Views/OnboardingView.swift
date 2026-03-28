@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - Onboarding View
+
 struct OnboardingView: View {
     let onComplete: () -> Void
 
@@ -7,211 +9,542 @@ struct OnboardingView: View {
     @EnvironmentObject var permissions: PermissionManager
     @State private var step = 0
 
+    private let totalSteps = 5
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Progress dots
-            HStack(spacing: 8) {
-                ForEach(0..<4) { i in
-                    Circle()
-                        .fill(i <= step ? Color.accentColor : Color.secondary.opacity(0.3))
-                        .frame(width: 8, height: 8)
+        ZStack {
+            // Dark background with subtle light pool (matches trylens)
+            OnboardingBackground()
+
+            VStack(spacing: 0) {
+                ZStack {
+                    switch step {
+                    case 0: welcomeStep.transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+                    case 1: microphoneStep.transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+                    case 2: accessibilityStep.transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+                    case 3: modelStep.transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+                    case 4: doneStep.transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
+                    default: EmptyView()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .animation(.spring(response: 0.45, dampingFraction: 0.85), value: step)
+
+                if step > 0 && step < totalSteps - 1 {
+                    OnboardingPageIndicator(current: step, total: totalSteps)
+                        .padding(.bottom, 20)
                 }
             }
-            .padding(.top, 32)
-            .padding(.bottom, 24)
-
-            // Step content
-            Group {
-                switch step {
-                case 0:
-                    welcomeStep
-                case 1:
-                    microphoneStep
-                case 2:
-                    accessibilityStep
-                case 3:
-                    modelStep
-                default:
-                    EmptyView()
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Spacer()
         }
-        .frame(width: 480, height: 420)
+        .frame(width: 460, height: 480)
     }
 
-    // MARK: - Steps
+    // MARK: - Step 0: Welcome
 
     private var welcomeStep: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "mic.circle.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(.tint)
+        VStack(spacing: 0) {
+            Spacer()
 
-            Text("Welcome to Inputalk")
-                .font(.title.bold())
+            VStack(spacing: 24) {
+                WelcomeIcon()
 
-            Text(
-                "Free, local voice-to-text.\nDouble-press Fn to dictate hands-free, or hold Fn for push-to-talk."
-            )
-            .font(.body)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 40)
+                VStack(spacing: 8) {
+                    Text("Welcome to Inputalk")
+                        .font(.system(size: 22, weight: .semibold))
+                        .tracking(-0.3)
+                        .foregroundStyle(.white)
 
-            Button("Get Started") {
+                    Text("Free dictation for macOS — let's get you set up")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.white.opacity(0.4))
+                }
+            }
+
+            Spacer()
+
+            OnboardingPillButton("Get Started") {
                 withAnimation { step = 1 }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.top, 8)
+            .padding(.bottom, 8)
         }
+        .padding(.horizontal, 48)
+        .padding(.vertical, 40)
     }
+
+    // MARK: - Step 1: Microphone
 
     private var microphoneStep: some View {
-        VStack(spacing: 16) {
-            Image(systemName: permissions.hasMicrophone ? "mic.fill" : "mic.slash")
-                .font(.system(size: 48))
-                .foregroundStyle(permissions.hasMicrophone ? .green : .orange)
+        VStack(spacing: 0) {
+            Spacer()
 
-            Text("Microphone Access")
-                .font(.title2.bold())
+            VStack(spacing: 24) {
+                Image(systemName: "mic")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.pink, .orange.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+                    .glassed(in: Circle())
 
-            Text("Inputalk needs your microphone to record your voice for transcription.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                VStack(spacing: 8) {
+                    Text("Microphone")
+                        .font(.system(size: 20, weight: .semibold))
+                        .tracking(-0.3)
+                        .foregroundStyle(.white)
 
-            if permissions.hasMicrophone {
-                Label("Granted", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else {
-                Button("Grant Permission") {
-                    Task {
-                        await permissions.requestMicrophone()
-                    }
+                    Text("Inputalk needs your microphone to hear your voice for dictation")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.white.opacity(0.4))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .buttonStyle(.borderedProminent)
+
+                OnboardingPermissionBadge(granted: permissions.hasMicrophone)
             }
 
-            Button(permissions.hasMicrophone ? "Continue" : "Skip for now") {
-                withAnimation { step = 2 }
+            Spacer()
+
+            VStack(spacing: 12) {
+                if permissions.hasMicrophone {
+                    OnboardingPillButton("Continue") {
+                        withAnimation { step = 2 }
+                    }
+                } else {
+                    OnboardingPillButton("Grant Permission") {
+                        Task { await permissions.requestMicrophone() }
+                    }
+
+                    Button(action: { withAnimation { step = 2 } }) {
+                        Text("Skip for now")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.white.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .buttonStyle(.bordered)
-            .padding(.top, 4)
+            .padding(.bottom, 8)
         }
+        .padding(.horizontal, 48)
+        .padding(.vertical, 40)
     }
+
+    // MARK: - Step 2: Accessibility
 
     private var accessibilityStep: some View {
-        VStack(spacing: 16) {
-            Image(
-                systemName: permissions.hasAccessibility
-                    ? "hand.raised.fill" : "hand.raised.slash"
-            )
-            .font(.system(size: 48))
-            .foregroundStyle(permissions.hasAccessibility ? .green : .orange)
+        VStack(spacing: 0) {
+            Spacer()
 
-            Text("Accessibility Access")
-                .font(.title2.bold())
+            VStack(spacing: 24) {
+                Image(systemName: "hand.raised.fingers.spread")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.purple, .blue.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+                    .glassed(in: Circle())
 
-            Text(
-                "Required for the global keyboard shortcut and pasting text into other apps."
-            )
-            .font(.body)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 40)
+                VStack(spacing: 8) {
+                    Text("Accessibility")
+                        .font(.system(size: 20, weight: .semibold))
+                        .tracking(-0.3)
+                        .foregroundStyle(.white)
 
-            if permissions.hasAccessibility {
-                Label("Granted", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else {
-                Button("Open System Settings") {
-                    permissions.requestAccessibility()
+                    Text("Required for the Fn shortcut and pasting text into other apps")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.white.opacity(0.4))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .buttonStyle(.borderedProminent)
 
-                Text("After granting, click Continue.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                OnboardingPermissionBadge(granted: permissions.hasAccessibility)
             }
 
-            Button(permissions.hasAccessibility ? "Continue" : "Skip for now") {
-                withAnimation { step = 3 }
+            Spacer()
+
+            VStack(spacing: 12) {
+                if permissions.hasAccessibility {
+                    OnboardingPillButton("Continue") {
+                        withAnimation { step = 3 }
+                    }
+                } else {
+                    OnboardingPillButton("Open System Settings") {
+                        permissions.requestAccessibility()
+                    }
+
+                    Button(action: { withAnimation { step = 3 } }) {
+                        Text("Skip for now")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.white.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .buttonStyle(.bordered)
-            .padding(.top, 4)
+            .padding(.bottom, 8)
+        }
+        .padding(.horizontal, 48)
+        .padding(.vertical, 40)
+    }
+
+    // MARK: - Step 3: Model Download
+
+    private var modelStep: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 24) {
+                Image(systemName: "cpu")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.cyan, .blue.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+                    .glassed(in: Circle())
+
+                VStack(spacing: 8) {
+                    Text("Speech Model")
+                        .font(.system(size: 20, weight: .semibold))
+                        .tracking(-0.3)
+                        .foregroundStyle(.white)
+
+                    modelStatusView
+                }
+            }
+
+            Spacer()
+
+            if transcription.modelState == .ready {
+                OnboardingPillButton("Continue") {
+                    withAnimation { step = 4 }
+                }
+                .padding(.bottom, 8)
+            } else if case .error = transcription.modelState {
+                OnboardingPillButton("Retry") {
+                    Task { await transcription.loadModel() }
+                }
+                .padding(.bottom, 8)
+            }
+        }
+        .padding(.horizontal, 48)
+        .padding(.vertical, 40)
+        .onAppear {
+            if transcription.modelState == .unloaded {
+                Task { await transcription.loadModel() }
+            }
         }
     }
 
-    private var modelStep: some View {
-        VStack(spacing: 16) {
-            Group {
-                switch transcription.modelState {
-                case .ready:
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.green)
-                case .error(let msg):
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.red)
-                        Text(msg)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                default:
-                    ProgressView()
-                        .controlSize(.large)
-                }
+    @ViewBuilder
+    private var modelStatusView: some View {
+        switch transcription.modelState {
+        case .ready:
+            VStack(spacing: 12) {
+                Text("Model \"\(transcription.selectedModel)\" is ready")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.white.opacity(0.4))
+
+                OnboardingPermissionBadge(granted: true)
             }
+        case .loading:
+            VStack(spacing: 12) {
+                Text("Loading model...")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.white.opacity(0.4))
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(.white)
+            }
+        case .downloading(let progress):
+            VStack(spacing: 12) {
+                Text("Downloading \"\(transcription.selectedModel)\" — \(Int(progress * 100))%")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.white.opacity(0.4))
+                ProgressView(value: progress)
+                    .tint(.white)
+                    .frame(width: 200)
+            }
+        case .error(let msg):
+            VStack(spacing: 8) {
+                Text(msg)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.orange.opacity(0.8))
+                    .multilineTextAlignment(.center)
+            }
+        case .unloaded:
+            Text("Preparing...")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.white.opacity(0.4))
+        }
+    }
 
-            Text("Speech Model")
-                .font(.title2.bold())
+    // MARK: - Step 4: Done
 
-            switch transcription.modelState {
-            case .ready:
-                Text("Model \"\(transcription.selectedModel)\" is ready.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-            case .loading:
-                Text("Loading model \"\(transcription.selectedModel)\"...")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-            case .downloading(let progress):
+    private var doneStep: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 24) {
+                DoneCheckmark()
+
                 VStack(spacing: 8) {
-                    Text("Downloading model \"\(transcription.selectedModel)\"...")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                    ProgressView(value: progress)
-                        .frame(width: 200)
+                    Text("You're all set")
+                        .font(.system(size: 22, weight: .semibold))
+                        .tracking(-0.3)
+                        .foregroundStyle(.white)
+
+                    Text("Hold Fn to dictate, release to paste")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.white.opacity(0.4))
                 }
-            case .error:
-                Button("Retry") {
-                    Task { await transcription.loadModel() }
+
+                // Summary
+                VStack(spacing: 2) {
+                    OnboardingSummaryRow(
+                        icon: "mic",
+                        title: "Microphone",
+                        granted: permissions.hasMicrophone
+                    )
+                    OnboardingSummaryRow(
+                        icon: "hand.raised.fingers.spread",
+                        title: "Accessibility",
+                        granted: permissions.hasAccessibility
+                    )
+                    OnboardingSummaryRow(
+                        icon: "cpu",
+                        title: "Model: \(transcription.selectedModel)",
+                        granted: transcription.modelState == .ready
+                    )
                 }
-                .buttonStyle(.borderedProminent)
-            case .unloaded:
-                Text("Preparing model...")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .onAppear {
-                        Task { await transcription.loadModel() }
-                    }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .glassed(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
-            if transcription.modelState == .ready {
-                Button("Start Using Inputalk") {
-                    onComplete()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.top, 8)
+            Spacer()
+
+            OnboardingPillButton("Start Dictating") {
+                onComplete()
             }
+            .padding(.bottom, 8)
+        }
+        .padding(.horizontal, 48)
+        .padding(.vertical, 40)
+    }
+}
+
+// MARK: - Shared Components
+
+private struct OnboardingBackground: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(white: 0.10), Color(white: 0.04)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            RadialGradient(
+                colors: [Color.white.opacity(0.05), Color.clear],
+                center: UnitPoint(x: 0.5, y: 0.3),
+                startRadius: 20,
+                endRadius: 220
+            )
+        }
+        .ignoresSafeArea()
+    }
+}
+
+private struct OnboardingPillButton: View {
+    let title: String
+    let action: () -> Void
+
+    init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            Button(action: action) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
+        } else {
+            Button(action: action) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(height: 44)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.white.opacity(0.2),
+                                                Color.white.opacity(0.05),
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1
+                                    )
+                            )
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+private struct WelcomeIcon: View {
+    @State private var appeared = false
+
+    var body: some View {
+        Image(systemName: "waveform")
+            .font(.system(size: 32, weight: .light))
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [.white.opacity(0.9), .white.opacity(0.5)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .frame(width: 72, height: 72)
+            .glassed(in: Circle())
+            .scaleEffect(appeared ? 1.0 : 0.3)
+            .opacity(appeared ? 1.0 : 0.0)
+            .onAppear {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.15)) {
+                    appeared = true
+                }
+            }
+    }
+}
+
+private struct DoneCheckmark: View {
+    @State private var appeared = false
+
+    var body: some View {
+        Image(systemName: "checkmark")
+            .font(.system(size: 26, weight: .semibold))
+            .foregroundStyle(.green)
+            .frame(width: 64, height: 64)
+            .glassed(in: Circle())
+            .scaleEffect(appeared ? 1.0 : 0.3)
+            .opacity(appeared ? 1.0 : 0.0)
+            .onAppear {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.6).delay(0.15)) {
+                    appeared = true
+                }
+            }
+    }
+}
+
+private struct OnboardingPermissionBadge: View {
+    let granted: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(granted ? Color.green : Color.orange)
+                .frame(width: 8, height: 8)
+            Text(granted ? "Granted" : "Not Granted")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(granted ? Color.green : Color.orange)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .glassed(in: Capsule())
+        .animation(.easeOut(duration: 0.25), value: granted)
+    }
+}
+
+private struct OnboardingPageIndicator: View {
+    let current: Int
+    let total: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<total, id: \.self) { index in
+                Circle()
+                    .fill(index == current ? Color.white.opacity(0.8) : Color.white.opacity(0.2))
+                    .frame(width: index == current ? 7 : 5, height: index == current ? 7 : 5)
+                    .animation(.easeOut(duration: 0.2), value: current)
+            }
+        }
+    }
+}
+
+private struct OnboardingSummaryRow: View {
+    let icon: String
+    let title: String
+    let granted: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.white.opacity(0.5))
+                .frame(width: 20)
+
+            Text(title)
+                .font(.system(size: 13))
+                .foregroundStyle(Color.white.opacity(0.7))
+
+            Spacer()
+
+            Image(systemName: granted ? "checkmark.circle.fill" : "xmark.circle")
+                .font(.system(size: 14))
+                .foregroundStyle(granted ? .green : .orange)
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+// MARK: - Glass Helper
+
+extension View {
+    @ViewBuilder
+    func glassed<S: InsettableShape>(in shape: S) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: shape)
+        } else {
+            self
+                .background(shape.fill(Color.white.opacity(0.05)))
+                .overlay(shape.strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
         }
     }
 }
