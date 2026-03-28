@@ -47,37 +47,37 @@ export const LaunchVideo: React.FC = () => {
             (f >= 125 && f <= 270) ||
             (f >= 390 && f <= 565) ||
             (f >= 630 && f <= 745);
-          const base = isVoicePlaying ? 0.04 : 0.11;
-          // Intro bump (0-105)
-          if (f < 105) return 0.14;
-          // Outro bump (780-900)
-          if (f >= 780) return interpolate(f, [780, 810, 900], [0.12, 0.16, 0.14], {
+          const base = isVoicePlaying ? 0.12 : 0.28;
+          // Intro (0-105)
+          if (f < 105) return 0.32;
+          // Outro (780-900)
+          if (f >= 780) return interpolate(f, [780, 810, 900], [0.28, 0.35, 0.30], {
             extrapolateLeft: "clamp", extrapolateRight: "clamp",
           });
           return base;
         }}
       />
 
-      {/* Soft whooshes on scene transitions */}
-      <Sequence from={100}><Audio src={staticFile("whoosh.mp3")} volume={0.12} /></Sequence>
-      <Sequence from={365}><Audio src={staticFile("whoosh.mp3")} volume={0.10} /></Sequence>
-      <Sequence from={600}><Audio src={staticFile("whoosh.mp3")} volume={0.10} /></Sequence>
-      <Sequence from={770}><Audio src={staticFile("whoosh.mp3")} volume={0.12} /></Sequence>
+      {/* Whooshes on scene transitions */}
+      <Sequence from={100}><Audio src={staticFile("whoosh.mp3")} volume={0.25} /></Sequence>
+      <Sequence from={365}><Audio src={staticFile("whoosh.mp3")} volume={0.22} /></Sequence>
+      <Sequence from={600}><Audio src={staticFile("whoosh.mp3")} volume={0.22} /></Sequence>
+      <Sequence from={770}><Audio src={staticFile("whoosh.mp3")} volume={0.25} /></Sequence>
 
-      {/* Scene 1: Slack — v3 voices */}
-      <Sequence from={120}><Audio src={staticFile("ping.mp3")} volume={0.25} /></Sequence>
-      <Sequence from={130}><Audio src={staticFile("voice-slack-v3.mp3")} volume={0.75} /></Sequence>
-      <Sequence from={270}><Audio src={staticFile("done.mp3")} volume={0.2} /></Sequence>
+      {/* Scene 1: Slack */}
+      <Sequence from={120}><Audio src={staticFile("ping.mp3")} volume={0.5} /></Sequence>
+      <Sequence from={130}><Audio src={staticFile("voice-slack-v3.mp3")} volume={1.0} /></Sequence>
+      <Sequence from={270}><Audio src={staticFile("done.mp3")} volume={0.4} /></Sequence>
 
       {/* Scene 2: VS Code */}
-      <Sequence from={385}><Audio src={staticFile("ping.mp3")} volume={0.22} /></Sequence>
-      <Sequence from={395}><Audio src={staticFile("voice-vscode-v3.mp3")} volume={0.7} /></Sequence>
-      <Sequence from={520}><Audio src={staticFile("done.mp3")} volume={0.18} /></Sequence>
+      <Sequence from={385}><Audio src={staticFile("ping.mp3")} volume={0.45} /></Sequence>
+      <Sequence from={395}><Audio src={staticFile("voice-vscode-v3.mp3")} volume={0.95} /></Sequence>
+      <Sequence from={520}><Audio src={staticFile("done.mp3")} volume={0.35} /></Sequence>
 
       {/* Scene 3: Notes */}
-      <Sequence from={625}><Audio src={staticFile("ping.mp3")} volume={0.22} /></Sequence>
-      <Sequence from={635}><Audio src={staticFile("voice-notes-female.mp3")} volume={0.7} /></Sequence>
-      <Sequence from={730}><Audio src={staticFile("done.mp3")} volume={0.18} /></Sequence>
+      <Sequence from={625}><Audio src={staticFile("ping.mp3")} volume={0.45} /></Sequence>
+      <Sequence from={635}><Audio src={staticFile("voice-notes-female.mp3")} volume={0.95} /></Sequence>
+      <Sequence from={730}><Audio src={staticFile("done.mp3")} volume={0.35} /></Sequence>
 
       {/* ── Visual scenes ── */}
 
@@ -372,13 +372,15 @@ const SceneUseCase: React.FC<UseCaseProps> = ({
                 {codeContext ? "  " : ""}
                 {dictatedText.slice(0, charsVisible)}
                 {charsVisible < dictatedText.length && (
-                  <span className="text-[#e4e4e7] ml-[1px]"
-                    style={{ opacity: Math.sin(frame * 0.3) > 0 ? 1 : 0 }}>|</span>
+                  <BlinkingCaret frame={frame} color={codeContext ? "#6a9955" : "#e4e4e7"} />
                 )}
               </span>
             ) : (
-              <span className="text-[15px] text-[#3f3f46]">
-                {codeContext ? "  " : ""}{placeholder}
+              <span className="flex items-center text-[15px] text-[#3f3f46]">
+                {codeContext ? "  " : ""}
+                {/* Show blinking caret when focused but no text yet */}
+                {frame >= 12 && <BlinkingCaret frame={frame} color="#a1a1aa" />}
+                {placeholder && <span className="ml-1">{placeholder}</span>}
               </span>
             )}
           </div>
@@ -435,13 +437,13 @@ const SceneClose: React.FC = () => {
   return (
     <AbsoluteFill className="flex flex-col items-center justify-center">
       <div style={{ opacity: line1Opacity, transform: `translateY(${line1Y}px)` }}>
-        <span className="text-[32px] text-[#ececee] font-medium">
-          Whisper AI. On your Mac.
+        <span className="text-[36px] text-[#ececee] font-medium">
+          Stop typing. Start talking.
         </span>
       </div>
-      <div className="mt-1" style={{ opacity: line2Opacity, transform: `translateY(${line2Y}px)` }}>
-        <span className="text-[32px] text-[#52525b]">
-          Nothing leaves your machine.
+      <div className="mt-2" style={{ opacity: line2Opacity, transform: `translateY(${line2Y}px)` }}>
+        <span className="text-[20px] text-[#71717a]">
+          Free. Private. Runs entirely on your Mac.
         </span>
       </div>
 
@@ -568,6 +570,25 @@ const MacOSCursor: React.FC<{ frame: number; clickFrame: number }> = ({
         />
       </svg>
     </div>
+  );
+};
+
+/* ── Blinking Text Caret ────────────────────────────────────── */
+
+const BlinkingCaret: React.FC<{ frame: number; color: string }> = ({ frame, color }) => {
+  // Standard macOS text caret blink: ~530ms on, ~530ms off (~16 frames each at 30fps)
+  const blinkCycle = Math.floor(frame / 16) % 2 === 0;
+  return (
+    <span
+      className="inline-block ml-[1px]"
+      style={{
+        width: "1.5px",
+        height: "1.1em",
+        backgroundColor: color,
+        opacity: blinkCycle ? 1 : 0,
+        verticalAlign: "text-bottom",
+      }}
+    />
   );
 };
 
