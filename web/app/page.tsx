@@ -63,16 +63,14 @@ export default async function Page() {
         </div>
 
         <h1 className="font-[family-name:var(--font-syne)] text-[var(--color-text-primary)] text-4xl sm:text-[52px] font-bold tracking-[-0.03em] leading-[1.08] text-center max-w-xl">
-          Voice to text,
-          <br />
-          on your Mac
+          Dictation for macOS
         </h1>
 
         <p className="mt-5 text-base sm:text-[17px] leading-relaxed text-center max-w-md text-[var(--color-text-secondary)]">
           Hold{" "}
           <Key>fn</Key>, speak, release.
-          Transcribed text appears at your cursor.
-          {" "}Whisper&nbsp;AI runs entirely on&#8209;device.
+          Text appears wherever your cursor is.
+          {" "}Transcription runs on&#8209;device — no accounts, no cloud, no cost.
         </p>
 
         {/* CTA */}
@@ -98,18 +96,18 @@ export default async function Page() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-[var(--color-border-subtle)] rounded-xl overflow-hidden">
             <FlowStep
               step="01"
-              title="Press & hold"
-              detail="Hold the Fn key to record. Double-press for hands-free mode."
+              title="Hold Fn and speak"
+              detail="Push-to-talk dictation. Or double-press Fn for hands-free mode."
             />
             <FlowStep
               step="02"
-              title="On-device transcription"
-              detail="Whisper runs on Apple Neural Engine. Nothing leaves your machine."
+              title="Transcribed on-device"
+              detail="Speech-to-text runs locally on Apple Neural Engine. Nothing is sent anywhere."
             />
             <FlowStep
               step="03"
-              title="Text at cursor"
-              detail="Release Fn. Transcribed text is pasted into whatever app you're using."
+              title="Pasted at your cursor"
+              detail="Release Fn. Text appears in whatever app you're using — Slack, VS Code, email, anywhere."
             />
           </div>
         </div>

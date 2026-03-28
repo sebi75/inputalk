@@ -1,22 +1,18 @@
 # Inputalk
 
-Local voice-to-text for macOS. Hold Fn, speak, release — transcribed text appears at your cursor.
+Free, open-source dictation for macOS. Hold Fn, speak, release — text appears wherever your cursor is.
 
-Runs [Whisper](https://github.com/openai/whisper) entirely on-device via [WhisperKit](https://github.com/argmaxinc/WhisperKit). No cloud, no API keys, no cost.
+No cloud. No API keys. No cost. Transcription runs entirely on your Mac via [WhisperKit](https://github.com/argmaxinc/WhisperKit).
 
 ## How it works
 
-- **Hold Fn** — push-to-talk. Release to transcribe and paste.
-- **Double-press Fn** — hands-free mode. Press Fn again to stop.
-- Works in any app: Slack, VS Code, Terminal, Messages, browser, anything with a text field.
+- **Hold Fn** — push-to-talk dictation. Release to transcribe and paste.
+- **Double-press Fn** — hands-free dictation. Press Fn again to stop.
+- Works in any app — Slack, VS Code, Terminal, Messages, browser, email, anything with a text field.
 
 ## Install
 
-Download the latest `.dmg` from [inputalk.com](https://inputalk.com) or grab it directly:
-
-```
-curl -LO https://inputalk.s3.us-east-1.amazonaws.com/releases/latest.json
-```
+Download the latest `.dmg` from [inputalk.com](https://inputalk.com).
 
 Open the DMG, drag to Applications. On first launch, grant Microphone and Accessibility permissions when prompted.
 
@@ -31,7 +27,7 @@ Whisper models download on first use and run on Apple Neural Engine.
 | small | 466 MB | ~4x realtime | Very good |
 | medium | 1.5 GB | ~2x realtime | Excellent |
 
-Switch models in Settings. All model data is stored in `~/Library/Application Support/com.inputalk.app/Models/` and removed cleanly on uninstall.
+Switch models in Settings. Model data is stored in `~/Library/Application Support/com.inputalk.app/Models/` and removed on uninstall.
 
 ## Requirements
 
@@ -63,11 +59,12 @@ macos/          Swift app (SPM, macOS 15+)
   Resources/    Info.plist, entitlements, icons
   scripts/      build, release, publish
 web/            Landing page (Next.js 15 + Tailwind)
+video/          Launch video (Remotion)
 ```
 
 ## Tech
 
-- [WhisperKit](https://github.com/argmaxinc/WhisperKit) — on-device Whisper via CoreML
+- [WhisperKit](https://github.com/argmaxinc/WhisperKit) — on-device speech-to-text via CoreML
 - Swift 6, Swift Package Manager
 - CGEvent tap for global Fn key capture
 - Clipboard + simulated Cmd+V for text insertion
@@ -75,4 +72,4 @@ web/            Landing page (Next.js 15 + Tailwind)
 
 ## License
 
-MIT
+[MIT](LICENSE)

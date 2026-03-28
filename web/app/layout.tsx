@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Syne, DM_Sans, JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
 const syne = Syne({
@@ -21,22 +22,22 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Inputalk — local voice-to-text for macOS",
+  title: "Inputalk — free dictation for macOS",
   description:
-    "Hold Fn, speak, release. Text appears at your cursor. Whisper AI runs on your Mac. Open source, no cloud, no API keys.",
+    "Dictate into any app on your Mac. Hold Fn, speak, release — text appears at your cursor. On-device transcription, no cloud, completely free.",
   openGraph: {
-    title: "Inputalk — local voice-to-text for macOS",
+    title: "Inputalk — free dictation for macOS",
     description:
-      "Hold Fn, speak, release. Text appears at your cursor. Whisper AI runs on your Mac.",
+      "Dictate into any app on your Mac. Hold Fn, speak, release — text appears at your cursor. On-device, free, open source.",
     url: "https://inputalk.com",
     siteName: "Inputalk",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Inputalk — local voice-to-text for macOS",
+    title: "Inputalk — free dictation for macOS",
     description:
-      "Hold Fn, speak, release. Text appears at your cursor. Whisper AI runs on your Mac.",
+      "Dictate into any app on your Mac. Hold Fn, speak, release — text appears at your cursor. On-device, free, open source.",
   },
 };
 
@@ -52,6 +53,7 @@ export default function RootLayout({
     >
       <body className="bg-[#08080a] text-[#a1a1aa] antialiased font-[family-name:var(--font-dm)]">
         {children}
+        <Analytics />
       </body>
     </html>
   );
