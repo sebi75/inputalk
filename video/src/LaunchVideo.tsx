@@ -47,7 +47,7 @@ export const LaunchVideo: React.FC = () => {
             (f >= 125 && f <= 270) ||
             (f >= 390 && f <= 565) ||
             (f >= 630 && f <= 745);
-          const base = isVoicePlaying ? 0.06 : 0.12;
+          const base = isVoicePlaying ? 0.04 : 0.11;
           // Intro bump (0-105)
           if (f < 105) return 0.14;
           // Outro bump (780-900)
@@ -344,50 +344,55 @@ const SceneUseCase: React.FC<UseCaseProps> = ({
         </span>
       </div>
 
-      {/* Mock window */}
-      <MockWindow app={app} topLine={topLine}>
-        {codeContext && (
-          <>
-            <div className="mb-1 opacity-40">
-              <span className="text-[15px] text-[#52525b]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                <span className="text-[#c084fc]">export async function</span>{" "}
-                <span className="text-[#67e8f9]">validateSession</span>{"(req: Request) {"}
-              </span>
-            </div>
-            <div className="mb-1 opacity-30">
-              <span className="text-[15px] text-[#52525b]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                {"  const token = req.headers.authorization;"}
-              </span>
-            </div>
-          </>
-        )}
-        <div className="flex items-center min-h-[28px]">
-          {charsVisible > 0 ? (
-            <span
-              className={codeContext ? "text-[15px] text-[#6a9955]" : "text-[16px] text-[#ececee]"}
-              style={codeContext ? { fontFamily: "'JetBrains Mono', monospace" } : {}}>
-              {codeContext ? "  " : ""}
-              {dictatedText.slice(0, charsVisible)}
-              {charsVisible < dictatedText.length && (
-                <span className="text-[#e4e4e7] ml-[1px]"
-                  style={{ opacity: Math.sin(frame * 0.3) > 0 ? 1 : 0 }}>|</span>
-              )}
-            </span>
-          ) : (
-            <span className="text-[15px] text-[#3f3f46]">
-              {codeContext ? "  " : ""}{placeholder}
-            </span>
+      {/* Mock window with focus ring */}
+      <div className="relative">
+        <MockWindow app={app} topLine={topLine} focused={frame >= 10}>
+          {codeContext && (
+            <>
+              <div className="mb-1 opacity-40">
+                <span className="text-[15px] text-[#52525b]"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span className="text-[#c084fc]">export async function</span>{" "}
+                  <span className="text-[#67e8f9]">validateSession</span>{"(req: Request) {"}
+                </span>
+              </div>
+              <div className="mb-1 opacity-30">
+                <span className="text-[15px] text-[#52525b]"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  {"  const token = req.headers.authorization;"}
+                </span>
+              </div>
+            </>
           )}
-        </div>
-        {codeContext && (
-          <div className="mt-1 opacity-30">
-            <span className="text-[15px] text-[#52525b]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}>{"}"}</span>
+          <div className="flex items-center min-h-[28px]">
+            {charsVisible > 0 ? (
+              <span
+                className={codeContext ? "text-[15px] text-[#6a9955]" : "text-[16px] text-[#ececee]"}
+                style={codeContext ? { fontFamily: "'JetBrains Mono', monospace" } : {}}>
+                {codeContext ? "  " : ""}
+                {dictatedText.slice(0, charsVisible)}
+                {charsVisible < dictatedText.length && (
+                  <span className="text-[#e4e4e7] ml-[1px]"
+                    style={{ opacity: Math.sin(frame * 0.3) > 0 ? 1 : 0 }}>|</span>
+                )}
+              </span>
+            ) : (
+              <span className="text-[15px] text-[#3f3f46]">
+                {codeContext ? "  " : ""}{placeholder}
+              </span>
+            )}
           </div>
-        )}
-      </MockWindow>
+          {codeContext && (
+            <div className="mt-1 opacity-30">
+              <span className="text-[15px] text-[#52525b]"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}>{"}"}</span>
+            </div>
+          )}
+        </MockWindow>
+
+        {/* macOS cursor */}
+        <MacOSCursor frame={frame} clickFrame={9} />
+      </div>
 
       {/* Fn key */}
       <FnKeyVisual pressed={isFnPressed} frame={frame} pressFrame={fnPressFrame} />
@@ -475,20 +480,31 @@ const SceneClose: React.FC = () => {
 const MockWindow: React.FC<{
   app: "slack" | "vscode" | "notes";
   topLine: string;
+  focused?: boolean;
   children: React.ReactNode;
-}> = ({ app, topLine, children }) => {
+}> = ({ app, topLine, focused, children }) => {
+  const frame = useCurrentFrame();
   const colors = {
     slack: { bg: "#1a1d21", titlebar: "#1a1d21", border: "#2c2d30" },
     vscode: { bg: "#1e1e1e", titlebar: "#323233", border: "#3c3c3c" },
     notes: { bg: "#1c1c1e", titlebar: "#2c2c2e", border: "#3a3a3c" },
   };
   const c = colors[app];
+
+  // Focus ring animation — fades in after click
+  const focusRingOpacity = focused
+    ? interpolate(frame, [10, 16], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+    : 0;
+
   return (
     <div className="w-[720px] rounded-xl overflow-hidden"
       style={{
         backgroundColor: c.bg,
-        border: `1px solid ${c.border}`,
-        boxShadow: "0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.03)",
+        border: `1px solid ${focused ? `rgba(140,140,160,${0.15 + focusRingOpacity * 0.2})` : c.border}`,
+        boxShadow: focused && focusRingOpacity > 0
+          ? `0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.03), 0 0 0 ${3 * focusRingOpacity}px rgba(140,140,160,${0.12 * focusRingOpacity})`
+          : "0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.03)",
+        transition: "border-color 0.2s, box-shadow 0.2s",
       }}>
       <div className="flex items-center gap-2 px-4 py-2.5"
         style={{ backgroundColor: c.titlebar, borderBottom: `1px solid ${c.border}` }}>
@@ -499,6 +515,58 @@ const MockWindow: React.FC<{
           style={{ fontFamily: "'JetBrains Mono', monospace" }}>{topLine}</span>
       </div>
       <div className="px-5 py-4 min-h-[70px]">{children}</div>
+    </div>
+  );
+};
+
+/* ── macOS Cursor ──────────────────────────────────────────── */
+
+const MacOSCursor: React.FC<{ frame: number; clickFrame: number }> = ({
+  frame,
+  clickFrame,
+}) => {
+  // Cursor moves from top-right of window into the input area, then clicks
+  const moveEnd = clickFrame;
+  const smoothstep = (t: number) => t * t * (3 - 2 * t);
+
+  // Start position: offset from input, end: in the input area
+  const progress = frame < 1 ? 0 : Math.min(1, frame / moveEnd);
+  const eased = smoothstep(progress);
+
+  const cursorX = interpolate(eased, [0, 1], [280, 40]);
+  const cursorY = interpolate(eased, [0, 1], [-30, 48]);
+
+  // Click animation: brief scale down
+  const isClicking = frame >= clickFrame && frame < clickFrame + 4;
+  const clickScale = isClicking ? 0.85 : 1;
+
+  // Fade out cursor after click + brief pause
+  const cursorOpacity = interpolate(frame, [0, 2, clickFrame + 8, clickFrame + 16], [0, 1, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  return (
+    <div
+      className="absolute pointer-events-none"
+      style={{
+        left: `${cursorX}px`,
+        top: `${cursorY}px`,
+        opacity: cursorOpacity,
+        transform: `scale(${clickScale})`,
+        zIndex: 50,
+      }}
+    >
+      {/* macOS default black cursor */}
+      <svg width="18" height="22" viewBox="0 0 18 22" fill="none">
+        <path
+          d="M1.5 0.5L1.5 17.5L5.5 13.5L9.5 21L12 20L8 12.5L13.5 12.5L1.5 0.5Z"
+          fill="#000000"
+          stroke="#ffffff"
+          strokeWidth="1"
+          strokeLinejoin="round"
+        />
+      </svg>
     </div>
   );
 };
