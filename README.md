@@ -4,7 +4,9 @@ Free, open-source dictation for macOS. Hold Fn, speak, release — text appears 
 
 No cloud. No API keys. No cost. Transcription runs entirely on your Mac via [WhisperKit](https://github.com/argmaxinc/WhisperKit).
 
-https://github.com/sebi75/inputalk/raw/main/assets/demo.mp4
+<p align="center">
+  <img src="assets/demo.gif" alt="Inputalk demo" width="720" />
+</p>
 
 ## How it works
 
