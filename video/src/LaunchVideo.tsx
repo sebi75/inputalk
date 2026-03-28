@@ -37,35 +37,29 @@ export const LaunchVideo: React.FC = () => {
         }}
       />
 
-      {/* ── Audio bed ── */}
-      <Audio src={staticFile("bg-music-v2.mp3")} volume={0.14} />
+      {/* ── Audio ── */}
+      <Audio src={staticFile("bg-music-v3.mp3")} volume={0.16} />
 
-      {/* Scene transitions whooshes */}
-      <Sequence from={100}><Audio src={staticFile("whoosh.mp3")} volume={0.2} /></Sequence>
-      <Sequence from={365}><Audio src={staticFile("whoosh.mp3")} volume={0.18} /></Sequence>
-      <Sequence from={600}><Audio src={staticFile("whoosh.mp3")} volume={0.18} /></Sequence>
-      <Sequence from={770}><Audio src={staticFile("whoosh.mp3")} volume={0.2} /></Sequence>
+      {/* Soft whooshes on scene transitions */}
+      <Sequence from={100}><Audio src={staticFile("whoosh.mp3")} volume={0.12} /></Sequence>
+      <Sequence from={365}><Audio src={staticFile("whoosh.mp3")} volume={0.10} /></Sequence>
+      <Sequence from={600}><Audio src={staticFile("whoosh.mp3")} volume={0.10} /></Sequence>
+      <Sequence from={770}><Audio src={staticFile("whoosh.mp3")} volume={0.12} /></Sequence>
 
-      {/* ── Scene 1: Slack (105-370) ── */}
-      {/* Recording ping */}
-      <Sequence from={120}><Audio src={staticFile("ping.mp3")} volume={0.35} /></Sequence>
-      {/* Voice plays during listening — starts when recording indicator appears */}
-      <Sequence from={130}><Audio src={staticFile("voice-slack.mp3")} volume={0.8} /></Sequence>
-      {/* Done chime + typing sound */}
-      <Sequence from={266}><Audio src={staticFile("done.mp3")} volume={0.25} /></Sequence>
-      <Sequence from={282}><Audio src={staticFile("typing.mp3")} volume={0.2} /></Sequence>
+      {/* Scene 1: Slack — v3 voices */}
+      <Sequence from={120}><Audio src={staticFile("ping.mp3")} volume={0.25} /></Sequence>
+      <Sequence from={130}><Audio src={staticFile("voice-slack-v3.mp3")} volume={0.75} /></Sequence>
+      <Sequence from={270}><Audio src={staticFile("done.mp3")} volume={0.2} /></Sequence>
 
-      {/* ── Scene 2: VS Code (370-610) ── */}
-      <Sequence from={385}><Audio src={staticFile("ping.mp3")} volume={0.3} /></Sequence>
-      <Sequence from={395}><Audio src={staticFile("voice-vscode.mp3")} volume={0.75} /></Sequence>
-      <Sequence from={508}><Audio src={staticFile("done.mp3")} volume={0.22} /></Sequence>
-      <Sequence from={524}><Audio src={staticFile("typing.mp3")} volume={0.18} /></Sequence>
+      {/* Scene 2: VS Code */}
+      <Sequence from={385}><Audio src={staticFile("ping.mp3")} volume={0.22} /></Sequence>
+      <Sequence from={395}><Audio src={staticFile("voice-vscode-v3.mp3")} volume={0.7} /></Sequence>
+      <Sequence from={520}><Audio src={staticFile("done.mp3")} volume={0.18} /></Sequence>
 
-      {/* ── Scene 3: Notes (610-780) ── */}
-      <Sequence from={625}><Audio src={staticFile("ping.mp3")} volume={0.3} /></Sequence>
-      <Sequence from={635}><Audio src={staticFile("voice-notes.mp3")} volume={0.75} /></Sequence>
-      <Sequence from={730}><Audio src={staticFile("done.mp3")} volume={0.22} /></Sequence>
-      <Sequence from={742}><Audio src={staticFile("typing.mp3")} volume={0.18} /></Sequence>
+      {/* Scene 3: Notes */}
+      <Sequence from={625}><Audio src={staticFile("ping.mp3")} volume={0.22} /></Sequence>
+      <Sequence from={635}><Audio src={staticFile("voice-notes-v3.mp3")} volume={0.7} /></Sequence>
+      <Sequence from={730}><Audio src={staticFile("done.mp3")} volume={0.18} /></Sequence>
 
       {/* ── Visual scenes ── */}
 
@@ -81,7 +75,7 @@ export const LaunchVideo: React.FC = () => {
           placeholder="Message #engineering"
           dictatedText="Hey, can we push the standup to 3pm? I'm wrapping up the auth fix."
           totalFrames={260}
-          voiceDurationFrames={114}
+          voiceDurationFrames={130}
           caption="message a teammate"
         />
       </Sequence>
@@ -108,7 +102,7 @@ export const LaunchVideo: React.FC = () => {
           placeholder=""
           dictatedText="Follow up with design team about the new onboarding flow before Friday"
           totalFrames={170}
-          voiceDurationFrames={125}
+          voiceDurationFrames={110}
           caption="jot down a reminder"
         />
       </Sequence>
@@ -167,7 +161,7 @@ const SceneColdOpen: React.FC = () => {
             return (
               <div
                 key={i}
-                className="w-[3px] rounded-full bg-[#22d3ee]"
+                className="w-[3px] rounded-full bg-[#e4e4e7]"
                 style={{
                   height: `${h * 48 * barSpring}px`,
                   opacity: 0.4 + h * 0.5,
@@ -260,27 +254,28 @@ const SceneUseCase: React.FC<UseCaseProps> = ({
       ? 0.4 + 0.6 * Math.sin(voiceProgress * Math.PI) // bell curve
       : 0.1;
 
-  // Zoom toward widget during listening, ease back for typing
-  const zoomPhase = recordStart + 35;
-  const zoomBackStart = Math.max(transcribeEnd + 1, zoomPhase + 1);
-  const zoomBackEnd = zoomBackStart + 30;
+  // Smooth zoom toward widget during listening, slow ease back
+  const zoomInEnd = recordStart + 50; // slower zoom in (50 frames)
+  const zoomBackStart = Math.max(transcribeEnd + 1, zoomInEnd + 1);
+  const zoomBackEnd = zoomBackStart + 40; // slower ease back (40 frames)
+
+  // smoothstep for buttery animation
+  const smoothstep = (t: number) => t * t * (3 - 2 * t);
 
   let zoom = 1;
   let panY = 0;
 
-  if (frame >= recordStart && frame < zoomPhase) {
-    const t = (frame - recordStart) / (zoomPhase - recordStart);
-    const eased = t * t * (3 - 2 * t); // smoothstep
-    zoom = 1 + 0.25 * eased;
-    panY = -120 * eased;
-  } else if (frame >= zoomPhase && frame < zoomBackStart) {
-    zoom = 1.25;
-    panY = -120;
+  if (frame >= recordStart && frame < zoomInEnd) {
+    const t = smoothstep((frame - recordStart) / (zoomInEnd - recordStart));
+    zoom = 1 + 0.2 * t;      // gentler: 1.2x instead of 1.25x
+    panY = -100 * t;          // less aggressive pan
+  } else if (frame >= zoomInEnd && frame < zoomBackStart) {
+    zoom = 1.2;
+    panY = -100;
   } else if (frame >= zoomBackStart && frame < zoomBackEnd) {
-    const t = (frame - zoomBackStart) / (zoomBackEnd - zoomBackStart);
-    const eased = t * t * (3 - 2 * t);
-    zoom = 1.25 - 0.23 * eased;
-    panY = -120 + 120 * eased;
+    const t = smoothstep((frame - zoomBackStart) / (zoomBackEnd - zoomBackStart));
+    zoom = 1.2 - 0.18 * t;
+    panY = -100 + 100 * t;
   } else if (frame >= zoomBackEnd) {
     zoom = 1.02;
     panY = 0;
@@ -358,7 +353,7 @@ const SceneUseCase: React.FC<UseCaseProps> = ({
               {codeContext ? "  " : ""}
               {dictatedText.slice(0, charsVisible)}
               {charsVisible < dictatedText.length && (
-                <span className="text-[#22d3ee] ml-[1px]"
+                <span className="text-[#e4e4e7] ml-[1px]"
                   style={{ opacity: Math.sin(frame * 0.3) > 0 ? 1 : 0 }}>|</span>
               )}
             </span>
@@ -427,29 +422,25 @@ const SceneClose: React.FC = () => {
         </span>
       </div>
 
-      {/* CTA button */}
+      {/* CTA */}
       <div className="mt-12" style={{ opacity: ctaOpacity, transform: `scale(${ctaScale})` }}>
-        <div className="flex items-center gap-2.5 px-7 py-3.5 rounded-xl bg-[#ececee]">
-          <svg className="w-5 h-5 text-[#08080a]" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-          </svg>
-          <span className="text-[16px] font-semibold text-[#08080a]">
-            Download for Mac — free
+        <div className="px-7 py-3.5 rounded-xl bg-white/[0.08] border border-white/[0.1]">
+          <span className="text-[16px] font-medium text-[#ececee]">
+            Download for macOS — free
           </span>
         </div>
       </div>
 
-      <div className="mt-4" style={{ opacity: subOpacity }}>
-        <span className="text-[28px] text-[#22d3ee]"
+      <div className="mt-5" style={{ opacity: subOpacity }}>
+        <span className="text-[26px] text-[#ececee] font-medium"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}>
           inputalk.com
         </span>
       </div>
 
-      {/* Badges */}
-      <div className="flex items-center gap-3 mt-6" style={{ opacity: badgesOpacity }}>
-        {["Open source", "macOS 15+", "Apple Silicon & Intel"].map((label) => (
-          <div key={label} className="px-3 py-1.5 rounded-md border border-[#1c1c1f] bg-[#111113]">
+      <div className="flex items-center gap-3 mt-5" style={{ opacity: badgesOpacity }}>
+        {["open source", "macOS 15+", "runs on-device"].map((label) => (
+          <div key={label} className="px-3 py-1.5 rounded-md border border-[#1c1c1f]">
             <span className="text-[12px] text-[#52525b]"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}>{label}</span>
           </div>
@@ -512,14 +503,14 @@ const FnKeyVisual: React.FC<{
   return (
     <div className="absolute bottom-[170px] right-[220px]" style={{ opacity: opacity * fadeOut }}>
       <div className={`w-[56px] h-[56px] rounded-xl flex items-center justify-center border-[1.5px] ${
-        pressed ? "bg-[#22d3ee]/8 border-[#22d3ee]/25" : "bg-[#111113] border-[#252528]"
+        pressed ? "bg-[#e4e4e7]/8 border-[#e4e4e7]/25" : "bg-[#111113] border-[#252528]"
       }`} style={{
         transform: `scale(${pressed ? pressScale * 0.95 : 1})`,
         boxShadow: pressed
           ? "0 0 24px rgba(34,211,238,0.1), inset 0 1px 0 rgba(255,255,255,0.04)"
           : "inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 4px rgba(0,0,0,0.3)",
       }}>
-        <span className={`text-[15px] font-semibold ${pressed ? "text-[#22d3ee]" : "text-[#52525b]"}`}
+        <span className={`text-[15px] font-semibold ${pressed ? "text-[#e4e4e7]" : "text-[#52525b]"}`}
           style={{ fontFamily: "'JetBrains Mono', monospace" }}>fn</span>
       </div>
     </div>
