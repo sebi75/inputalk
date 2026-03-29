@@ -78,7 +78,7 @@ export default async function Page() {
         {/* CTA */}
         <div className="mt-10 flex flex-col items-center gap-3">
           <DownloadButton
-            href={release?.dmg.url ?? "#"}
+            href="/api/download"
             version={release?.version}
             size={release ? mb(release.dmg.size) : undefined}
           />
