@@ -123,6 +123,11 @@ private class FnKeyState: @unchecked Sendable {
     var doubleTapTimer: DispatchWorkItem?
     weak var manager: HotkeyManager?
 
+    /// Track previous Fn flag state so we only suppress events where Fn actually changed.
+    /// Without this, modifier key-up events (Shift, Cmd, etc.) get swallowed because
+    /// their flags are empty after release, causing "stuck keys" in remote desktop apps.
+    var previousFnDown: Bool = false
+
     /// How long Fn must be held before hold-to-talk activates
     let holdThreshold: TimeInterval = 0.3
     /// Window to detect second tap of double-tap
@@ -152,9 +157,20 @@ private func fnEventCallback(
     // Check if the Fn (Globe / SecondaryFn) flag changed
     // NX_SECONDARYFN = 0x800000 in IOKit
     let fnFlag: UInt64 = 0x800000
-    let fnPressed = (event.flags.rawValue & fnFlag) != 0
+    let fnIsDown = (event.flags.rawValue & fnFlag) != 0
 
-    // Ignore if other modifiers are held (Cmd, Opt, Shift, Ctrl)
+    // Only act on events where the Fn flag actually toggled.
+    // flagsChanged fires for ALL modifier changes (Shift, Cmd, etc.).
+    // If we suppress non-Fn events, their key-up never reaches the system,
+    // causing "stuck" modifiers in remote desktop apps like Parsec.
+    let fnChanged = (fnIsDown != state.previousFnDown)
+    state.previousFnDown = fnIsDown
+
+    if !fnChanged {
+        return Unmanaged.passUnretained(event)
+    }
+
+    // Fn flag changed — ignore if other modifiers are also held (Cmd, Opt, Shift, Ctrl)
     let otherModifiers: CGEventFlags = [.maskCommand, .maskAlternate, .maskShift, .maskControl]
     let hasOtherModifiers = !event.flags.intersection(otherModifiers).isEmpty
     if hasOtherModifiers {
@@ -162,12 +178,11 @@ private func fnEventCallback(
     }
 
     DispatchQueue.main.async {
-        handleFnStateChange(state: state, fnPressed: fnPressed)
+        handleFnStateChange(state: state, fnPressed: fnIsDown)
     }
 
-    // Suppress ALL Fn events unconditionally to prevent macOS from showing
+    // Suppress Fn events to prevent macOS from showing
     // the emoji picker, keyboard switcher, or dictation panel.
-    // Our app owns the Fn key entirely while running.
     return nil
 }
 
