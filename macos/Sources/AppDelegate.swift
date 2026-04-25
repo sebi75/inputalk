@@ -2,6 +2,10 @@ import AppKit
 import Combine
 import SwiftUI
 
+enum Defaults {
+    static let showInDock = "showInDock"
+}
+
 // MARK: - App State
 
 enum AppState {
@@ -35,8 +39,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var indicatorDismissTask: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        UserDefaults.standard.register(defaults: [Defaults.showInDock: true])
+
+        setupMainMenu()
         setupMenuBar()
         setupHotkey()
+
+        if UserDefaults.standard.bool(forKey: Defaults.showInDock) {
+            NSApp.setActivationPolicy(.regular)
+        }
 
         // Re-check permissions when app becomes active (user returns from System Settings)
         NotificationCenter.default.addObserver(
@@ -221,6 +232,77 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    // MARK: - Main Menu
+
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+        let appMenu = NSMenu()
+        appMenuItem.submenu = appMenu
+        appMenu.addItem(
+            NSMenuItem(
+                title: "About Inputalk",
+                action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+                keyEquivalent: ""))
+        appMenu.addItem(.separator())
+        appMenu.addItem(
+            NSMenuItem(
+                title: "Hide Inputalk",
+                action: #selector(NSApplication.hide(_:)),
+                keyEquivalent: "h"))
+        let hideOthers = NSMenuItem(
+            title: "Hide Others",
+            action: #selector(NSApplication.hideOtherApplications(_:)),
+            keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(hideOthers)
+        appMenu.addItem(
+            NSMenuItem(
+                title: "Show All",
+                action: #selector(NSApplication.unhideAllApplications(_:)),
+                keyEquivalent: ""))
+        appMenu.addItem(.separator())
+        appMenu.addItem(
+            NSMenuItem(
+                title: "Quit Inputalk",
+                action: #selector(NSApplication.terminate(_:)),
+                keyEquivalent: "q"))
+
+        let editMenuItem = NSMenuItem()
+        mainMenu.addItem(editMenuItem)
+        let editMenu = NSMenu(title: "Edit")
+        editMenuItem.submenu = editMenu
+        editMenu.addItem(
+            NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        editMenu.addItem(
+            NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        editMenu.addItem(
+            NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        editMenu.addItem(
+            NSMenuItem(
+                title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+
+        let windowMenuItem = NSMenuItem()
+        mainMenu.addItem(windowMenuItem)
+        let windowMenu = NSMenu(title: "Window")
+        windowMenuItem.submenu = windowMenu
+        windowMenu.addItem(
+            NSMenuItem(
+                title: "Close",
+                action: #selector(NSWindow.performClose(_:)),
+                keyEquivalent: "w"))
+        windowMenu.addItem(
+            NSMenuItem(
+                title: "Minimize",
+                action: #selector(NSWindow.performMiniaturize(_:)),
+                keyEquivalent: "m"))
+
+        NSApp.mainMenu = mainMenu
+        NSApp.windowsMenu = windowMenu
+    }
+
     // MARK: - Menu Bar
 
     private func setupMenuBar() {
@@ -315,6 +397,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     .environmentObject(permissions)
             )
             window.isReleasedWhenClosed = false
+            window.delegate = self
             settingsWindow = window
         }
 
@@ -341,6 +424,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(self.permissions)
             )
             window.isReleasedWhenClosed = false
+            window.delegate = self
             onboardingWindow = window
         }
 
@@ -354,11 +438,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         onboardingWindow?.orderOut(nil)
         onboardingWindow?.close()
         onboardingWindow = nil
-        NSApp.setActivationPolicy(.accessory)
+        if !UserDefaults.standard.bool(forKey: Defaults.showInDock) {
+            NSApp.setActivationPolicy(.accessory)
+        }
         setupHotkey()
+    }
+
+    func applyDockVisibilityPreference() {
+        let showInDock = UserDefaults.standard.bool(forKey: Defaults.showInDock)
+        let activeWindow = NSApp.keyWindow
+        NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
+        Task { @MainActor in
+            activeWindow?.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+        }
     }
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
+    }
+}
+
+// MARK: - NSWindowDelegate
+
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        guard let closedWindow = notification.object as? NSWindow else { return }
+
+        if UserDefaults.standard.bool(forKey: Defaults.showInDock) { return }
+
+        let otherWindow: NSWindow? =
+            (closedWindow === settingsWindow) ? onboardingWindow : settingsWindow
+        if otherWindow?.isVisible != true {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 }
