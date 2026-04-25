@@ -6,6 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject var permissions: PermissionManager
 
     @AppStorage("removeFillerWords") private var removeFillerWords = true
+    @AppStorage(Defaults.showInDock) private var showInDock = true
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -89,6 +90,13 @@ struct SettingsView: View {
                     } catch {
                         launchAtLogin = !newValue
                     }
+                }
+
+                Toggle(isOn: $showInDock) {
+                    Label("Show in Dock", systemImage: "dock.rectangle")
+                }
+                .onChange(of: showInDock) { _, _ in
+                    (NSApp.delegate as? AppDelegate)?.applyDockVisibilityPreference()
                 }
             } header: {
                 Text("General")
