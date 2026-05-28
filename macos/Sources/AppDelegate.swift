@@ -19,6 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let transcriptionService = TranscriptionService()
     let hotkeyManager = HotkeyManager()
     let permissions = PermissionManager.shared
+    let updateService = UpdateService()
 
     var settingsWindow: NSWindow?
     var onboardingWindow: NSWindow?
@@ -280,6 +281,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
+        let updateItem = NSMenuItem(
+            title: "Check for Updates...", action: #selector(checkForUpdatesAction), keyEquivalent: "")
+        updateItem.target = self
+        updateItem.isEnabled = updateService.isConfigured && updateService.canCheckForUpdates
+        menu.addItem(updateItem)
+
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = NSMenuItem(
@@ -298,6 +305,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         showSettings()
     }
 
+    @objc private func checkForUpdatesAction() {
+        updateService.checkForUpdates()
+    }
+
     func showSettings() {
         if settingsWindow == nil {
             let window = NSWindow(
@@ -313,6 +324,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 rootView: SettingsView()
                     .environmentObject(transcriptionService)
                     .environmentObject(permissions)
+                    .environmentObject(updateService)
             )
             window.isReleasedWhenClosed = false
             settingsWindow = window

@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var transcription: TranscriptionService
     @EnvironmentObject var permissions: PermissionManager
+    @EnvironmentObject var updates: UpdateService
 
     @AppStorage("removeFillerWords") private var removeFillerWords = true
 
@@ -92,6 +93,32 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("General")
+            }
+
+            // Updates
+            Section {
+                Button {
+                    updates.checkForUpdates()
+                } label: {
+                    Label("Check for Updates...", systemImage: "arrow.down.circle")
+                }
+                .disabled(!updates.isConfigured || !updates.canCheckForUpdates)
+
+                Toggle(isOn: Binding(
+                    get: { updates.automaticallyChecksForUpdates },
+                    set: { updates.automaticallyChecksForUpdates = $0 }
+                )) {
+                    Label("Automatically check for updates", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(!updates.isConfigured)
+
+                if !updates.isConfigured {
+                    Text("Sparkle updates are not configured for this build.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            } header: {
+                Text("Updates")
             }
 
             // Permissions

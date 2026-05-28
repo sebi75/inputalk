@@ -9,12 +9,14 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.0"),
     ],
     targets: [
         .executableTarget(
             name: "Inputalk",
             dependencies: [
                 .product(name: "WhisperKit", package: "WhisperKit"),
+                .product(name: "Sparkle", package: "Sparkle"),
             ],
             resources: [
                 .copy("Resources/MenuBarIcon.png"),
