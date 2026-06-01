@@ -23,9 +23,9 @@ NC='\033[0m' # No Color
 
 APP_NAME="Inputalk"
 BUNDLE_ID="com.inputalk.app"
-BUILD_DIR=".build/apple/Products/Release"
 DIST_DIR="dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
+UNIVERSAL="${UNIVERSAL:-true}"
 
 echo -e "${BLUE}Building $APP_NAME...${NC}"
 
@@ -34,10 +34,18 @@ echo -e "${BLUE}Cleaning previous builds...${NC}"
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
-# Build release binary (universal binary)
-echo -e "${BLUE}Building release binary (universal)...${NC}"
 cd "$PROJECT_DIR"
-swift build -c release --arch arm64 --arch x86_64
+
+# Build release binary
+if [ "$UNIVERSAL" = "true" ]; then
+    echo -e "${BLUE}Building release binary (universal)...${NC}"
+    swift build -c release --arch arm64 --arch x86_64
+    BUILD_DIR=".build/apple/Products/Release"
+else
+    echo -e "${BLUE}Building release binary (host arch only)...${NC}"
+    swift build -c release
+    BUILD_DIR="$(swift build -c release --show-bin-path)"
+fi
 
 # Verify binary was created
 if [ ! -f "$BUILD_DIR/Inputalk" ]; then
