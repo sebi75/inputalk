@@ -81,7 +81,8 @@ https://inputalk.s3.us-east-1.amazonaws.com/releases/appcast.xml
 SPARKLE_SIGN_UPDATE=/path/to/sign_update ./scripts/publish-release.sh
 ```
 
-Always increment `CFBundleVersion` for Sparkle releases; Sparkle uses it to compare updates.
+`build-app.sh` stamps `CFBundleVersion` from the git commit count at build time so Sparkle
+always gets a monotonically increasing build number.
 
 ## Project structure
 

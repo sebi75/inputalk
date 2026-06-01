@@ -1,14 +1,16 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 ROOT_DIR="$(dirname "$PROJECT_DIR")"
+APP_BUNDLE="$PROJECT_DIR/dist/Inputalk.app"
 
 # Load .env (check repo root first, then macos/)
 for ENV_FILE in "$ROOT_DIR/.env" "$PROJECT_DIR/.env"; do
     if [ -f "$ENV_FILE" ]; then
         set -a
+        # shellcheck disable=SC1090
         source "$ENV_FILE"
         set +a
         break
@@ -35,7 +37,7 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --skip-build    Skip building (use existing dist/)"
-            echo "  --dry-run       Show what would be done"
+            echo "  --dry-run       Build and render release artifacts locally (no S3 upload)"
             echo "  --help          Show this help"
             exit 0
             ;;
@@ -46,6 +48,11 @@ echo -e "${BLUE}======================================${NC}"
 echo -e "${BLUE}  Inputalk Release Publisher          ${NC}"
 echo -e "${BLUE}======================================${NC}"
 echo ""
+
+if [ "$DRY_RUN" = true ]; then
+    echo -e "${YELLOW}[DRY RUN] Will render local artifacts only (no S3 upload)${NC}"
+    echo ""
+fi
 
 # Read version from Info.plist
 VERSION=$(grep -A1 "CFBundleShortVersionString" "$PROJECT_DIR/Resources/Info.plist" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
@@ -61,25 +68,20 @@ S3_BUCKET="${AWS_S3_BUCKET_NAME:-inputalk}"
 S3_DMG_KEY="releases/$VERSION/$DMG_FILE"
 S3_LATEST_KEY="releases/latest.json"
 S3_APPCAST_KEY="releases/appcast.xml"
+DMG_URL="https://${S3_BUCKET}.s3.${AWS_REGION:-us-east-1}.amazonaws.com/${S3_DMG_KEY}"
 
 echo -e "${BLUE}Version:${NC}  $VERSION"
 echo -e "${BLUE}DMG:${NC}      $DMG_FILE"
 echo -e "${BLUE}S3 Key:${NC}   s3://$S3_BUCKET/$S3_DMG_KEY"
+echo -e "${BLUE}DMG URL:${NC}  $DMG_URL"
 echo ""
 
-if [ "$DRY_RUN" = true ]; then
-    echo -e "${YELLOW}[DRY RUN] Would upload:${NC}"
-    echo -e "  DMG     → s3://$S3_BUCKET/$S3_DMG_KEY"
-    echo -e "  JSON    → s3://$S3_BUCKET/$S3_LATEST_KEY"
-    echo -e "  Appcast → s3://$S3_BUCKET/$S3_APPCAST_KEY"
-    exit 0
-fi
-
-# Check required env vars
-if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_S3_BUCKET_NAME" ]; then
-    echo -e "${RED}Error: AWS credentials not set in .env${NC}"
-    echo -e "${RED}Required: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET_NAME${NC}"
-    exit 1
+if [ "$DRY_RUN" != true ]; then
+    if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ] || [ -z "${AWS_S3_BUCKET_NAME:-}" ]; then
+        echo -e "${RED}Error: AWS credentials not set in .env${NC}"
+        echo -e "${RED}Required: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET_NAME${NC}"
+        exit 1
+    fi
 fi
 
 # Step 1: Build
@@ -96,6 +98,11 @@ fi
 # Check DMG exists
 if [ ! -f "$DMG_PATH" ]; then
     echo -e "${RED}Error: DMG not found at $DMG_PATH${NC}"
+    exit 1
+fi
+
+if [ ! -f "$APP_BUNDLE/Contents/Info.plist" ]; then
+    echo -e "${RED}Error: App bundle Info.plist not found at $APP_BUNDLE/Contents/Info.plist${NC}"
     exit 1
 fi
 
@@ -119,14 +126,21 @@ if [ -z "$PUBLIC_KEY" ] || [ "$PUBLIC_KEY" = "REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY
     exit 1
 fi
 
-BUILD_NUMBER=$(grep -A1 "CFBundleVersion" "$PROJECT_DIR/Resources/Info.plist" | grep -o '[0-9]\+')
+BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_BUNDLE/Contents/Info.plist")
 if [ -z "$BUILD_NUMBER" ]; then
-    echo -e "${RED}Error: Could not read build number from Info.plist${NC}"
+    echo -e "${RED}Error: Could not read build number from app bundle Info.plist${NC}"
+    exit 1
+fi
+
+if [ -z "$DMG_URL" ]; then
+    echo -e "${RED}Error: DMG_URL is empty${NC}"
     exit 1
 fi
 
 SIGNATURE_ATTRS=$("$SPARKLE_SIGN_UPDATE" "$DMG_PATH")
 PUB_DATE=$(date -Ru)
+DMG_SIZE_BYTES=$(stat -f%z "$DMG_PATH")
+RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 APPCAST_XML=$(cat <<EOF
 <?xml version="1.0" standalone="yes"?>
@@ -150,24 +164,6 @@ APPCAST_XML=$(cat <<EOF
 EOF
 )
 
-echo -e "${GREEN}Sparkle appcast ready${NC}"
-echo ""
-
-# Step 2: Upload DMG to S3
-echo -e "${BLUE}Step 2: Uploading DMG to S3...${NC}"
-aws s3 cp "$DMG_PATH" "s3://$S3_BUCKET/$S3_DMG_KEY" \
-    --region "${AWS_REGION:-us-east-1}" \
-    --content-type "application/octet-stream"
-
-echo -e "${GREEN}DMG uploaded!${NC}"
-
-# Step 3: Upload latest.json manifest
-echo -e "${BLUE}Step 3: Updating latest.json...${NC}"
-
-DMG_SIZE_BYTES=$(stat -f%z "$DMG_PATH")
-RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-DMG_URL="https://$S3_BUCKET.s3.${AWS_REGION:-us-east-1}.amazonaws.com/$S3_DMG_KEY"
-
 LATEST_JSON=$(cat <<EOF
 {
   "version": "$VERSION",
@@ -180,6 +176,43 @@ LATEST_JSON=$(cat <<EOF
 }
 EOF
 )
+
+mkdir -p "$PROJECT_DIR/dist"
+echo "$APPCAST_XML" > "$PROJECT_DIR/dist/appcast.xml"
+echo "$LATEST_JSON" > "$PROJECT_DIR/dist/latest.json"
+
+if command -v xmllint > /dev/null 2>&1; then
+    xmllint --noout "$PROJECT_DIR/dist/appcast.xml"
+fi
+
+echo -e "${GREEN}Sparkle appcast ready${NC}"
+echo -e "${GREEN}Wrote:${NC} $PROJECT_DIR/dist/appcast.xml"
+echo -e "${GREEN}Wrote:${NC} $PROJECT_DIR/dist/latest.json"
+echo ""
+
+if [ "$DRY_RUN" = true ]; then
+    echo -e "${YELLOW}[DRY RUN] Skipping S3 upload${NC}"
+    echo ""
+    echo -e "  Would upload DMG     → s3://$S3_BUCKET/$S3_DMG_KEY"
+    echo -e "  Would upload JSON      → s3://$S3_BUCKET/$S3_LATEST_KEY"
+    echo -e "  Would upload Appcast   → s3://$S3_BUCKET/$S3_APPCAST_KEY"
+    echo ""
+    echo -e "${GREEN}======================================${NC}"
+    echo -e "${GREEN}  Dry run complete!                   ${NC}"
+    echo -e "${GREEN}======================================${NC}"
+    exit 0
+fi
+
+# Step 2: Upload DMG to S3
+echo -e "${BLUE}Step 2: Uploading DMG to S3...${NC}"
+aws s3 cp "$DMG_PATH" "s3://$S3_BUCKET/$S3_DMG_KEY" \
+    --region "${AWS_REGION:-us-east-1}" \
+    --content-type "application/octet-stream"
+
+echo -e "${GREEN}DMG uploaded!${NC}"
+
+# Step 3: Upload latest.json manifest
+echo -e "${BLUE}Step 3: Updating latest.json...${NC}"
 
 echo "$LATEST_JSON" | aws s3 cp - "s3://$S3_BUCKET/$S3_LATEST_KEY" \
     --region "${AWS_REGION:-us-east-1}" \
@@ -211,6 +244,7 @@ echo -e "${GREEN}  Release published successfully!     ${NC}"
 echo -e "${GREEN}======================================${NC}"
 echo ""
 echo -e "  Version:  ${GREEN}$VERSION${NC}"
+echo -e "  Build:    ${GREEN}$BUILD_NUMBER${NC}"
 echo -e "  DMG URL:  ${GREEN}$DMG_URL${NC}"
 echo -e "  Manifest: ${GREEN}https://$S3_BUCKET.s3.${AWS_REGION:-us-east-1}.amazonaws.com/$S3_LATEST_KEY${NC}"
 echo -e "  Appcast:  ${GREEN}https://$S3_BUCKET.s3.${AWS_REGION:-us-east-1}.amazonaws.com/$S3_APPCAST_KEY${NC}"

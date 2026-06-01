@@ -102,7 +102,7 @@ struct SettingsView: View {
                 } label: {
                     Label("Check for Updates...", systemImage: "arrow.down.circle")
                 }
-                .disabled(!updates.isConfigured || !updates.canCheckForUpdates)
+                .disabled(!updates.isConfigured)
 
                 Toggle(isOn: Binding(
                     get: { updates.automaticallyChecksForUpdates },

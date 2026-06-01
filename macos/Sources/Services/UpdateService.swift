@@ -13,19 +13,10 @@ class UpdateService: ObservableObject {
 
     private var updaterController: SPUStandardUpdaterController?
 
-    var canCheckForUpdates: Bool {
-        updaterController?.updater.canCheckForUpdates ?? false
-    }
-
     init() {
         let configured = Self.hasValidSparkleConfiguration()
         self.isConfigured = configured
-        if UserDefaults.standard.object(forKey: "SUEnableAutomaticChecks") == nil {
-            self.automaticallyChecksForUpdates = true
-        } else {
-            self.automaticallyChecksForUpdates = UserDefaults.standard.bool(
-                forKey: "SUEnableAutomaticChecks")
-        }
+        self.automaticallyChecksForUpdates = true
 
         guard configured else { return }
 

@@ -284,7 +284,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let updateItem = NSMenuItem(
             title: "Check for Updates...", action: #selector(checkForUpdatesAction), keyEquivalent: "")
         updateItem.target = self
-        updateItem.isEnabled = updateService.isConfigured && updateService.canCheckForUpdates
+        updateItem.isEnabled = updateService.isConfigured
         menu.addItem(updateItem)
 
         menu.addItem(NSMenuItem.separator())
