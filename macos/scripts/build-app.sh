@@ -56,13 +56,20 @@ fi
 # Create app bundle structure
 echo -e "${BLUE}Creating app bundle structure...${NC}"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
+mkdir -p "$APP_BUNDLE/Contents/Frameworks"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 # Copy binary
 cp "$BUILD_DIR/Inputalk" "$APP_BUNDLE/Contents/MacOS/Inputalk"
 
-# Copy Info.plist
+# Copy Info.plist and stamp a monotonic build number for Sparkle.
+GIT_BUILD_NUMBER=$(git -C "$ROOT_DIR" rev-list --count HEAD 2>/dev/null || echo "1")
+if [ -z "$GIT_BUILD_NUMBER" ] || [ "$GIT_BUILD_NUMBER" = "0" ]; then
+    GIT_BUILD_NUMBER=1
+fi
 cp "Resources/Info.plist" "$APP_BUNDLE/Contents/"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GIT_BUILD_NUMBER" "$APP_BUNDLE/Contents/Info.plist"
+echo -e "${BLUE}Build number:${NC} $GIT_BUILD_NUMBER"
 
 # Copy resource bundle if it exists (contains bundled resources)
 RESOURCE_BUNDLE="$BUILD_DIR/Inputalk_Inputalk.bundle"
@@ -77,6 +84,21 @@ if [ -f "Resources/AppIcon.icns" ]; then
     cp "Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/"
 else
     echo -e "${YELLOW}Warning: AppIcon.icns not found. Using default icon.${NC}"
+fi
+
+# Copy Sparkle framework when the SPM binary artifact is present.
+# This app bundle is assembled manually, so SwiftPM-linked frameworks must be embedded.
+SPARKLE_FRAMEWORK=$(find ".build/artifacts" -path "*/Sparkle.framework" -type d 2>/dev/null | head -1)
+if [ -n "$SPARKLE_FRAMEWORK" ]; then
+    echo -e "${BLUE}Copying Sparkle framework...${NC}"
+    cp -R "$SPARKLE_FRAMEWORK" "$APP_BUNDLE/Contents/Frameworks/"
+
+    if ! otool -l "$APP_BUNDLE/Contents/MacOS/Inputalk" | grep -q "@executable_path/../Frameworks"; then
+        echo -e "${BLUE}Adding framework rpath...${NC}"
+        install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BUNDLE/Contents/MacOS/Inputalk"
+    fi
+else
+    echo -e "${YELLOW}Warning: Sparkle.framework not found in .build/artifacts.${NC}"
 fi
 
 # Set executable permissions
@@ -94,6 +116,50 @@ if [ ! -z "$CODE_SIGN_IDENTITY" ]; then
     echo -e "${BLUE}Code signing with identity: $CODE_SIGN_IDENTITY${NC}"
 
     # Sign inside-out: nested bundles first, then the main app
+    SPARKLE_FRAMEWORK_PATH="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+    SPARKLE_VERSION_DIR="$SPARKLE_FRAMEWORK_PATH/Versions/B"
+    if [ -d "$SPARKLE_FRAMEWORK_PATH" ]; then
+        echo -e "${BLUE}Signing Sparkle framework (inside-out)...${NC}"
+
+        INSTALLER_XPC="$SPARKLE_VERSION_DIR/XPCServices/Installer.xpc"
+        if [ -d "$INSTALLER_XPC" ]; then
+            codesign --force --sign "$CODE_SIGN_IDENTITY" \
+                --options runtime \
+                --timestamp \
+                "$INSTALLER_XPC"
+        fi
+
+        DOWNLOADER_XPC="$SPARKLE_VERSION_DIR/XPCServices/Downloader.xpc"
+        if [ -d "$DOWNLOADER_XPC" ]; then
+            codesign --force --sign "$CODE_SIGN_IDENTITY" \
+                --options runtime \
+                --timestamp \
+                --preserve-metadata=entitlements \
+                "$DOWNLOADER_XPC"
+        fi
+
+        AUTOUPDATE="$SPARKLE_VERSION_DIR/Autoupdate"
+        if [ -f "$AUTOUPDATE" ]; then
+            codesign --force --sign "$CODE_SIGN_IDENTITY" \
+                --options runtime \
+                --timestamp \
+                "$AUTOUPDATE"
+        fi
+
+        UPDATER_APP="$SPARKLE_VERSION_DIR/Updater.app"
+        if [ -d "$UPDATER_APP" ]; then
+            codesign --force --sign "$CODE_SIGN_IDENTITY" \
+                --options runtime \
+                --timestamp \
+                "$UPDATER_APP"
+        fi
+
+        codesign --force --sign "$CODE_SIGN_IDENTITY" \
+            --options runtime \
+            --timestamp \
+            "$SPARKLE_FRAMEWORK_PATH"
+    fi
+
     RESOURCE_BUNDLE_PATH="$APP_BUNDLE/Contents/Resources/Inputalk_Inputalk.bundle"
     if [ -d "$RESOURCE_BUNDLE_PATH" ]; then
         echo -e "${BLUE}Signing nested resource bundle...${NC}"

@@ -52,8 +52,37 @@ swift run
 # Set up .env with CODE_SIGN_IDENTITY
 cd macos
 ./scripts/release.sh          # build + sign + notarize + DMG
-./scripts/publish-release.sh  # upload to S3 + update latest.json
+./scripts/publish-release.sh  # upload to S3 + update latest.json + appcast.xml
 ```
+
+### Sparkle updates
+
+Inputalk uses [Sparkle](https://sparkle-project.org/) for app updates. Release archives are
+hosted on S3 alongside the website download manifest.
+
+Before publishing Sparkle updates, the maintainer must generate a Sparkle EdDSA key pair:
+
+```bash
+generate_keys
+```
+
+Add the printed public key to `macos/Resources/Info.plist` as `SUPublicEDKey`. Keep the
+private key secret; it is used by Sparkle's `sign_update` tool during release publishing.
+
+The appcast is published to:
+
+```text
+https://inputalk.s3.us-east-1.amazonaws.com/releases/appcast.xml
+```
+
+`publish-release.sh` expects `sign_update` on `PATH`. If it lives elsewhere, set:
+
+```bash
+SPARKLE_SIGN_UPDATE=/path/to/sign_update ./scripts/publish-release.sh
+```
+
+`build-app.sh` stamps `CFBundleVersion` from the git commit count at build time so Sparkle
+always gets a monotonically increasing build number.
 
 ## Project structure
 

@@ -34,6 +34,12 @@
 	<string>Inputalk needs microphone access to record your voice for transcription.</string>
 	<key>NSAccessibilityUsageDescription</key>
 	<string>Inputalk needs accessibility permissions for global keyboard shortcuts and text insertion.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://inputalk.s3.us-east-1.amazonaws.com/releases/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY</string>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
 	<key>LSApplicationCategoryType</key>
