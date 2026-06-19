@@ -39,7 +39,7 @@
 	<key>SUFeedURL</key>
 	<string>https://inputalk.s3.us-east-1.amazonaws.com/releases/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY</string>
+	<string>L1UVJNrGRYFO9N+P7SSpWgcZ6Ffo46hzRnSsIomT+Ng=</string>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
 	<key>LSApplicationCategoryType</key>
