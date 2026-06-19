@@ -37,7 +37,7 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  --skip-build    Skip building (use existing dist/)"
-            echo "  --dry-run       Build and render release artifacts locally (no S3 upload)"
+            echo "  --dry-run       Build and render release artifacts locally (no upload)"
             echo "  --help          Show this help"
             exit 0
             ;;
@@ -50,7 +50,7 @@ echo -e "${BLUE}======================================${NC}"
 echo ""
 
 if [ "$DRY_RUN" = true ]; then
-    echo -e "${YELLOW}[DRY RUN] Will render local artifacts only (no S3 upload)${NC}"
+    echo -e "${YELLOW}[DRY RUN] Will render local artifacts only (no upload)${NC}"
     echo ""
 fi
 
@@ -64,25 +64,23 @@ fi
 
 DMG_FILE="Inputalk-$VERSION.dmg"
 DMG_PATH="$PROJECT_DIR/dist/$DMG_FILE"
-S3_BUCKET="${AWS_S3_BUCKET_NAME:-inputalk}"
-S3_DMG_KEY="releases/$VERSION/$DMG_FILE"
-S3_LATEST_KEY="releases/latest.json"
-S3_APPCAST_KEY="releases/appcast.xml"
-DMG_URL="https://${S3_BUCKET}.s3.${AWS_REGION:-us-east-1}.amazonaws.com/${S3_DMG_KEY}"
-
-echo -e "${BLUE}Version:${NC}  $VERSION"
-echo -e "${BLUE}DMG:${NC}      $DMG_FILE"
-echo -e "${BLUE}S3 Key:${NC}   s3://$S3_BUCKET/$S3_DMG_KEY"
-echo -e "${BLUE}DMG URL:${NC}  $DMG_URL"
-echo ""
+TAG="v$VERSION"
 
 if [ "$DRY_RUN" != true ]; then
-    if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ] || [ -z "${AWS_S3_BUCKET_NAME:-}" ]; then
-        echo -e "${RED}Error: AWS credentials not set in .env${NC}"
-        echo -e "${RED}Required: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET_NAME${NC}"
+    if ! command -v gh > /dev/null 2>&1; then
+        echo -e "${RED}Error: GitHub CLI (gh) not found. Install it: brew install gh${NC}"
         exit 1
     fi
 fi
+
+REPO_SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo "sebi75/inputalk")
+DMG_URL="https://github.com/$REPO_SLUG/releases/download/$TAG/$DMG_FILE"
+
+echo -e "${BLUE}Version:${NC}  $VERSION"
+echo -e "${BLUE}DMG:${NC}      $DMG_FILE"
+echo -e "${BLUE}Tag:${NC}      $TAG"
+echo -e "${BLUE}DMG URL:${NC}  $DMG_URL"
+echo ""
 
 # Step 1: Build
 if [ "$SKIP_BUILD" = false ]; then
@@ -191,11 +189,12 @@ echo -e "${GREEN}Wrote:${NC} $PROJECT_DIR/dist/latest.json"
 echo ""
 
 if [ "$DRY_RUN" = true ]; then
-    echo -e "${YELLOW}[DRY RUN] Skipping S3 upload${NC}"
+    echo -e "${YELLOW}[DRY RUN] Skipping GitHub upload${NC}"
     echo ""
-    echo -e "  Would upload DMG     → s3://$S3_BUCKET/$S3_DMG_KEY"
-    echo -e "  Would upload JSON      → s3://$S3_BUCKET/$S3_LATEST_KEY"
-    echo -e "  Would upload Appcast   → s3://$S3_BUCKET/$S3_APPCAST_KEY"
+    echo -e "  Would publish release ${GREEN}$TAG${NC} with assets:"
+    echo -e "    $DMG_FILE"
+    echo -e "    appcast.xml"
+    echo -e "    latest.json"
     echo ""
     echo -e "${GREEN}======================================${NC}"
     echo -e "${GREEN}  Dry run complete!                   ${NC}"
@@ -203,40 +202,32 @@ if [ "$DRY_RUN" = true ]; then
     exit 0
 fi
 
-# Step 2: Upload DMG to S3
-echo -e "${BLUE}Step 2: Uploading DMG to S3...${NC}"
-aws s3 cp "$DMG_PATH" "s3://$S3_BUCKET/$S3_DMG_KEY" \
-    --region "${AWS_REGION:-us-east-1}" \
-    --content-type "application/octet-stream"
+# Step 2: Publish to GitHub Releases (create the release or add assets to it)
+echo -e "${BLUE}Step 2: Publishing to GitHub Releases ($TAG)...${NC}"
+if gh release view "$TAG" > /dev/null 2>&1; then
+    echo -e "${BLUE}Release $TAG exists; uploading assets...${NC}"
+    gh release upload "$TAG" \
+        "$DMG_PATH" \
+        "$PROJECT_DIR/dist/appcast.xml" \
+        "$PROJECT_DIR/dist/latest.json" \
+        --clobber
+else
+    echo -e "${BLUE}Creating release $TAG...${NC}"
+    gh release create "$TAG" \
+        "$DMG_PATH" \
+        "$PROJECT_DIR/dist/appcast.xml" \
+        "$PROJECT_DIR/dist/latest.json" \
+        --title "Inputalk $VERSION" \
+        --notes "Inputalk $VERSION"
+fi
 
-echo -e "${GREEN}DMG uploaded!${NC}"
-
-# Step 3: Upload latest.json manifest
-echo -e "${BLUE}Step 3: Updating latest.json...${NC}"
-
-echo "$LATEST_JSON" | aws s3 cp - "s3://$S3_BUCKET/$S3_LATEST_KEY" \
-    --region "${AWS_REGION:-us-east-1}" \
-    --content-type "application/json" \
-    --cache-control "max-age=60"
-
-echo -e "${GREEN}latest.json updated!${NC}"
+echo -e "${GREEN}Release published!${NC}"
 echo ""
 
-# Step 4: Upload Sparkle appcast
-echo -e "${BLUE}Step 4: Updating Sparkle appcast...${NC}"
-
-echo "$APPCAST_XML" | aws s3 cp - "s3://$S3_BUCKET/$S3_APPCAST_KEY" \
-    --region "${AWS_REGION:-us-east-1}" \
-    --content-type "application/xml" \
-    --cache-control "max-age=60"
-
-echo -e "${GREEN}appcast.xml updated!${NC}"
-echo ""
-
-# Verify
-echo -e "${BLUE}Verifying upload...${NC}"
-aws s3 ls "s3://$S3_BUCKET/$S3_DMG_KEY" --region "${AWS_REGION:-us-east-1}" > /dev/null 2>&1
-echo -e "${GREEN}DMG verified in S3${NC}"
+# Verify the DMG asset is attached to the release
+echo -e "${BLUE}Verifying release assets...${NC}"
+gh release view "$TAG" --json assets --jq '.assets[].name' | grep -q "$DMG_FILE"
+echo -e "${GREEN}DMG verified on GitHub release${NC}"
 
 echo ""
 echo -e "${GREEN}======================================${NC}"
@@ -246,6 +237,6 @@ echo ""
 echo -e "  Version:  ${GREEN}$VERSION${NC}"
 echo -e "  Build:    ${GREEN}$BUILD_NUMBER${NC}"
 echo -e "  DMG URL:  ${GREEN}$DMG_URL${NC}"
-echo -e "  Manifest: ${GREEN}https://$S3_BUCKET.s3.${AWS_REGION:-us-east-1}.amazonaws.com/$S3_LATEST_KEY${NC}"
-echo -e "  Appcast:  ${GREEN}https://$S3_BUCKET.s3.${AWS_REGION:-us-east-1}.amazonaws.com/$S3_APPCAST_KEY${NC}"
+echo -e "  Manifest: ${GREEN}https://github.com/$REPO_SLUG/releases/latest/download/latest.json${NC}"
+echo -e "  Appcast:  ${GREEN}https://github.com/$REPO_SLUG/releases/latest/download/appcast.xml${NC}"
 echo ""
