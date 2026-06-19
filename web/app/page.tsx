@@ -1,6 +1,7 @@
 import { DownloadButton } from "./download-button";
 
-const S3_BASE = "https://inputalk.s3.us-east-1.amazonaws.com";
+const RELEASE_MANIFEST =
+  "https://github.com/sebi75/inputalk/releases/latest/download/latest.json";
 
 interface ReleaseInfo {
   version: string;
@@ -10,7 +11,7 @@ interface ReleaseInfo {
 
 async function getRelease(): Promise<ReleaseInfo | null> {
   try {
-    const res = await fetch(`${S3_BASE}/releases/latest.json`, {
+    const res = await fetch(RELEASE_MANIFEST, {
       next: { revalidate: 60 },
     });
     if (!res.ok) return null;
