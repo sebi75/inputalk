@@ -99,6 +99,9 @@ codesign_dev_app
 # Reuse production Whisper models so the first Dev launch does not re-download.
 PROD_SUPPORT="$HOME/Library/Application Support/com.inputalk.app"
 DEV_SUPPORT="$HOME/Library/Application Support/$BUNDLE_ID"
+if [ -L "$DEV_SUPPORT/Models" ] && [ ! -e "$DEV_SUPPORT/Models" ]; then
+    rm "$DEV_SUPPORT/Models"  # dangling link from a removed production install
+fi
 if [ -d "$PROD_SUPPORT/Models" ] && [ ! -e "$DEV_SUPPORT/Models" ]; then
     mkdir -p "$DEV_SUPPORT"
     ln -s "$PROD_SUPPORT/Models" "$DEV_SUPPORT/Models"
