@@ -26,9 +26,10 @@ final class HotkeyManager {
     private var doubleTapWorkItem: DispatchWorkItem?
     private var exactChordWasPressed = false
 
-    private var originalFnUsageType: Int?
-    private var hadOriginalFnUsageType = false
     private var isOverridingFnBehavior = false
+    /// The user's AppleFnUsageType while we override it; -1 means the key was
+    /// absent. Persisted so a crash cannot leave Globe permanently disabled.
+    private static let fnUsageTypeBackupKey = "fnUsageTypeBackup"
 
     private static let holdThreshold: TimeInterval = 0.3
     private static let doubleTapWindow: TimeInterval = 0.4
@@ -66,6 +67,10 @@ final class HotkeyManager {
 
         if preferences.configuration.modifiers.contains(.fn) {
             disableSystemFnBehavior()
+        } else if UserDefaults.standard.object(forKey: Self.fnUsageTypeBackupKey) != nil {
+            // A previous run crashed before restoring Globe.
+            isOverridingFnBehavior = true
+            restoreSystemFnBehavior()
         }
 
         let eventMask =
@@ -230,8 +235,12 @@ final class HotkeyManager {
 
     private func disableSystemFnBehavior() {
         guard let defaults = UserDefaults(suiteName: "com.apple.HIToolbox") else { return }
-        hadOriginalFnUsageType = defaults.object(forKey: "AppleFnUsageType") != nil
-        originalFnUsageType = defaults.object(forKey: "AppleFnUsageType") as? Int
+        // A backup left by a crashed run holds the user's real value; the live
+        // preference is then our own override.
+        if UserDefaults.standard.object(forKey: Self.fnUsageTypeBackupKey) == nil {
+            let original = defaults.object(forKey: "AppleFnUsageType") as? Int ?? -1
+            UserDefaults.standard.set(original, forKey: Self.fnUsageTypeBackupKey)
+        }
         defaults.set(Int(FnUsageType.doNothing.rawValue), forKey: "AppleFnUsageType")
         TISUpdateFnUsageType(FnUsageType.doNothing.rawValue)
         isOverridingFnBehavior = true
@@ -241,16 +250,16 @@ final class HotkeyManager {
         guard isOverridingFnBehavior else { return }
         guard let defaults = UserDefaults(suiteName: "com.apple.HIToolbox") else { return }
 
-        if hadOriginalFnUsageType, let originalFnUsageType {
-            defaults.set(originalFnUsageType, forKey: "AppleFnUsageType")
-            TISUpdateFnUsageType(Int32(originalFnUsageType))
+        let original = UserDefaults.standard.object(forKey: Self.fnUsageTypeBackupKey) as? Int ?? -1
+        if original >= 0 {
+            defaults.set(original, forKey: "AppleFnUsageType")
+            TISUpdateFnUsageType(Int32(original))
         } else {
             defaults.removeObject(forKey: "AppleFnUsageType")
             // Absent key means Globe's factory action: emoji & symbols.
             TISUpdateFnUsageType(FnUsageType.showEmojiAndSymbols.rawValue)
         }
-        originalFnUsageType = nil
-        hadOriginalFnUsageType = false
+        UserDefaults.standard.removeObject(forKey: Self.fnUsageTypeBackupKey)
         isOverridingFnBehavior = false
     }
 }
