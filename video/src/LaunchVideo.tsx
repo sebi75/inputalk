@@ -464,7 +464,7 @@ const SceneClose: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-3 mt-5" style={{ opacity: badgesOpacity }}>
-        {["open source", "macOS 15+", "runs on-device"].map((label) => (
+        {["open source", "macOS 14+", "runs on-device"].map((label) => (
           <div key={label} className="px-3 py-1.5 rounded-md border border-[#1c1c1f]">
             <span className="text-[12px] text-[#52525b]"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}>{label}</span>

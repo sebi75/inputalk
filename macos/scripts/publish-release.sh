@@ -152,7 +152,7 @@ APPCAST_XML=$(cat <<EOF
       <pubDate>$PUB_DATE</pubDate>
       <sparkle:version>$BUILD_NUMBER</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <enclosure url="$DMG_URL"
         $SIGNATURE_ATTRS
         type="application/octet-stream" />

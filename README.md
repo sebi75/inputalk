@@ -36,7 +36,7 @@ Switch models in Settings. Model data is stored in `~/Library/Application Suppor
 
 ## Requirements
 
-- macOS 15+
+- macOS 14+
 - Apple Silicon or Intel
 
 ## Build from source
@@ -89,7 +89,7 @@ always gets a monotonically increasing build number.
 ## Project structure
 
 ```
-macos/          Swift app (SPM, macOS 15+)
+macos/          Swift app (SPM, macOS 14+)
   Sources/      AppDelegate, services, views
   Resources/    Info.plist, entitlements, icons
   scripts/      build, release, publish

@@ -85,8 +85,8 @@ export default async function Page() {
           />
           <span className="font-[family-name:var(--font-mono)] text-[11px] text-[var(--color-text-tertiary)]">
             {release
-              ? `v${release.version} · ${mb(release.dmg.size)} · macOS 15+`
-              : "macOS 15+ · Apple Silicon & Intel"}
+              ? `v${release.version} · ${mb(release.dmg.size)} · macOS 14+`
+              : "macOS 14+ · Apple Silicon & Intel"}
           </span>
         </div>
 
