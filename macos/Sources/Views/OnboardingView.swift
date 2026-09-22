@@ -299,24 +299,17 @@ struct OnboardingView: View {
 
                 OnboardingPermissionBadge(granted: true)
             }
+        case .checking:
+            onboardingBusyStatus("Checking for model...")
         case .loading:
-            VStack(spacing: 12) {
-                Text("Loading model...")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.white.opacity(0.4))
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(.white)
-            }
+            onboardingBusyStatus("Loading model...")
+        case .optimizing:
+            onboardingBusyStatus("Optimizing for this Mac...")
         case .downloading(let progress):
-            VStack(spacing: 12) {
-                Text("Downloading \"\(transcription.selectedModel)\" — \(Int(progress * 100))%")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.white.opacity(0.4))
-                ProgressView(value: progress)
-                    .tint(.white)
-                    .frame(width: 200)
-            }
+            onboardingProgressStatus(
+                "Downloading \"\(transcription.selectedModel)\" \(ModelLifecycle.percentText(from: progress))",
+                progress: progress
+            )
         case .error(let msg):
             VStack(spacing: 8) {
                 Text(msg)
@@ -328,6 +321,30 @@ struct OnboardingView: View {
             Text("Preparing...")
                 .font(.system(size: 13))
                 .foregroundStyle(Color.white.opacity(0.4))
+        }
+    }
+
+    @ViewBuilder
+    private func onboardingBusyStatus(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            Text(message)
+                .font(.system(size: 13))
+                .foregroundStyle(Color.white.opacity(0.4))
+            ProgressView()
+                .controlSize(.small)
+                .tint(.white)
+        }
+    }
+
+    @ViewBuilder
+    private func onboardingProgressStatus(_ message: String, progress: Double) -> some View {
+        VStack(spacing: 12) {
+            Text(message)
+                .font(.system(size: 13))
+                .foregroundStyle(Color.white.opacity(0.4))
+            ProgressView(value: progress)
+                .tint(.white)
+                .frame(width: 200)
         }
     }
 

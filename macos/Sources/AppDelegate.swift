@@ -179,6 +179,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !audioRecorder.isRecording else { return }
         recordingGeneration += 1
 
+        if let blocked = transcriptionService.recordingBlockMessage {
+            hotkeyManager.recordingWasStopped()
+            showTransientWarning(blocked)
+            return
+        }
+
         indicatorModel.notice = nil
         do {
             var resolution = try audioInputDevices.resolutionForRecording()
@@ -191,6 +197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             indicatorModel.spectrumLevels = AudioSpectrum.silence
             showIndicator(state: .recording)
             indicatorModel.notice = resolution.fallbackNotice?.message
+                ?? transcriptionService.recordingPrepareNotice
 
             do {
                 try await audioRecorder.startRecording(deviceUID: resolution.deviceUID)
@@ -200,6 +207,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     excludingUID: resolution.deviceUID
                 )
                 indicatorModel.notice = resolution.fallbackNotice?.message
+                    ?? transcriptionService.recordingPrepareNotice
                 try await audioRecorder.startRecording(deviceUID: resolution.deviceUID)
             }
 
@@ -242,8 +250,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // A new recording may start while transcription runs; only the
             // latest generation may touch the indicator and app state.
             do {
-                // transcribe() waits for the model if it's still loading —
-                // the user just sees "Transcribing" a bit longer on first use
+                // transcribe() uses the currently loaded model. A newer variant
+                // may still be preparing in the background.
                 let text = try await transcriptionService.transcribe(audioSamples: samples)
                 if TranscriptionPostProcessor.isNonSpeechOnly(text) {
                     if generation == recordingGeneration {
