@@ -43,9 +43,12 @@ Switch models in Settings. Model data is stored in `~/Library/Application Suppor
 
 ```bash
 cd macos
-swift build
-swift run
+./scripts/run-dev.sh
 ```
+
+That wraps the debug binary in **Inputalk Dev** (`com.inputalk.app.dev`), a separate app from the copy in `/Applications`. macOS otherwise attributes microphone and accessibility permission to the installed app, so the local binary cannot record. Grant those permissions to **Inputalk Dev** when prompted.
+
+`swift run` still compiles, but it launches a raw executable with no bundle identity. Do not use it when you need the microphone or global shortcut.
 
 ### Release build (signed + notarized)
 

@@ -25,7 +25,6 @@ struct FloatingIndicatorView: View {
                 switch model.state {
                 case .recording:
                     CursorWaveform(levels: model.spectrumLevels)
-                        .transition(.scale(scale: 0.8).combined(with: .opacity))
 
                 case .processing:
                     ProgressView()
@@ -34,7 +33,6 @@ struct FloatingIndicatorView: View {
                     Text("Transcribing")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.primary)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
 
                 case .done(let text):
                     Image(systemName: "checkmark.circle.fill")
@@ -47,7 +45,6 @@ struct FloatingIndicatorView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(maxWidth: 300)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
 
                 case .warning(let text):
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -68,14 +65,11 @@ struct FloatingIndicatorView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .frame(maxWidth: 320, alignment: .leading)
-                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .padding(.horizontal, model.state == .recording ? 10 : 14)
         .padding(.vertical, model.state == .recording ? 8 : 10)
         .modifier(GlassCapsuleModifier())
-        .animation(.snappy(duration: 0.24, extraBounce: 0), value: model.state)
-        .animation(.snappy(duration: 0.24, extraBounce: 0), value: model.notice)
     }
 }
 
@@ -103,6 +97,39 @@ private struct CursorWaveform: View {
     private func barHeight(at index: Int) -> CGFloat {
         let level = levels.indices.contains(index) ? levels[index] : 0
         return 2 + 12 * CGFloat(level)
+    }
+}
+
+enum FloatingIndicatorSizeAnimator {
+    static let duration: CFTimeInterval = 0.2
+
+    static func size(
+        from: CGSize,
+        to: CGSize,
+        elapsed: CFTimeInterval,
+        duration: CFTimeInterval = duration
+    ) -> CGSize {
+        let t = easeOut(progress(elapsed: elapsed, duration: duration))
+        return CGSize(
+            width: from.width + (to.width - from.width) * t,
+            height: from.height + (to.height - from.height) * t
+        )
+    }
+
+    static func progress(
+        elapsed: CFTimeInterval,
+        duration: CFTimeInterval = duration
+    ) -> CGFloat {
+        guard duration > 0 else { return 1 }
+        return CGFloat(min(1, max(0, elapsed / duration)))
+    }
+
+    static func easeOut(_ t: CGFloat) -> CGFloat {
+        1 - pow(1 - t, 3)
+    }
+
+    static func sizesAreNearlyEqual(_ a: CGSize, _ b: CGSize, tolerance: CGFloat = 0.5) -> Bool {
+        abs(a.width - b.width) < tolerance && abs(a.height - b.height) < tolerance
     }
 }
 

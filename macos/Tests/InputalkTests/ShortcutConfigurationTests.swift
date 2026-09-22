@@ -208,6 +208,39 @@ final class ShortcutConfigurationTests: XCTestCase {
         XCTAssertEqual(origin, CGPoint(x: 876, y: 19))
     }
 
+    func testIndicatorSizeAnimatorStartsAtFromSize() {
+        let size = FloatingIndicatorSizeAnimator.size(
+            from: CGSize(width: 140, height: 36),
+            to: CGSize(width: 40, height: 24),
+            elapsed: 0
+        )
+
+        XCTAssertEqual(size, CGSize(width: 140, height: 36))
+    }
+
+    func testIndicatorSizeAnimatorEndsAtToSize() {
+        let size = FloatingIndicatorSizeAnimator.size(
+            from: CGSize(width: 140, height: 36),
+            to: CGSize(width: 40, height: 24),
+            elapsed: FloatingIndicatorSizeAnimator.duration
+        )
+
+        XCTAssertEqual(size, CGSize(width: 40, height: 24))
+    }
+
+    func testIndicatorSizeAnimatorMidpointIsBetweenFromAndTo() {
+        let from = CGSize(width: 140, height: 36)
+        let to = CGSize(width: 40, height: 24)
+        let size = FloatingIndicatorSizeAnimator.size(
+            from: from,
+            to: to,
+            elapsed: FloatingIndicatorSizeAnimator.duration / 2
+        )
+
+        XCTAssertTrue(size.width < from.width && size.width > to.width)
+        XCTAssertTrue(size.height < from.height && size.height > to.height)
+    }
+
     func testSpectrumAnalyzerMapsTonesFromLowToHighBands() {
         let analyzer = AudioSpectrumAnalyzer(sampleRate: 16_000)
 

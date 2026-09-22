@@ -9,6 +9,14 @@ enum Defaults {
     static let settingsPage = "settingsPage"
 }
 
+enum AppIdentity {
+    static let developmentBundleID = "com.inputalk.app.dev"
+
+    static var isDevelopmentBuild: Bool {
+        Bundle.main.bundleIdentifier == developmentBundleID
+    }
+}
+
 enum SettingsPage: String {
     case dictation
     case history
@@ -61,6 +69,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var indicatorDisplayLink: CADisplayLink?
     private var lastIndicatorFrameTimestamp: CFTimeInterval?
     private var indicatorNeedsInitialFrame = false
+    private var indicatorSizeFrom: CGSize?
+    private var indicatorSizeTo: CGSize = .zero
+    private var indicatorSizeAnimStart: CFTimeInterval?
+    private var didApplyDevelopmentDockBadge = false
     private var microphoneMenu: NSMenu?
     private var activeInputDeviceID: AudioDeviceID?
     private var activeInputDeviceName: String?
@@ -81,10 +93,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setupMainMenu()
         setupMenuBar()
         setupHotkey()
+        if AppIdentity.isDevelopmentBuild, !permissions.hasAccessibility {
+            permissions.requestAccessibility()
+        }
 
         if UserDefaults.standard.bool(forKey: Defaults.showInDock) {
             NSApp.setActivationPolicy(.regular)
         }
+        applyDevelopmentDockBadge()
 
         // Re-check permissions when app becomes active (user returns from System Settings)
         NotificationCenter.default.addObserver(
@@ -293,9 +309,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func scheduleIndicatorDismissal(after seconds: Double) {
         indicatorDismissTask?.cancel()
+        let generation = recordingGeneration
         indicatorDismissTask = Task {
             // A cancelled sleep must not tear down the indicator a newer recording just showed.
             guard (try? await Task.sleep(for: .seconds(seconds))) != nil else { return }
+            guard generation == recordingGeneration else { return }
             dismissIndicator()
         }
     }
@@ -307,7 +325,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         indicatorDismissTask = nil
         indicatorModel.state = state
 
-        if indicatorPanel == nil {
+        let isNewPanel = indicatorPanel == nil
+        if isNewPanel {
             let panel = NSPanel(
                 contentRect: .zero,
                 styleMask: [.borderless, .nonactivatingPanel],
@@ -329,11 +348,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             indicatorHostingView = hostingView
         }
 
-        indicatorPanel?.alphaValue = 0
-        indicatorNeedsInitialFrame = true
+        if isNewPanel {
+            // Hide until the first laid-out frame so a brand-new panel does not
+            // flash at (0,0). Reusing a visible panel must not go to alpha 0:
+            // NSWindow.displayLink stops callbacks while the window is fully
+            // transparent, and startIndicatorTracking will not attach a second
+            // link, so the popover stays invisible for the whole recording.
+            indicatorPanel?.alphaValue = 0
+            indicatorNeedsInitialFrame = true
+            indicatorSizeFrom = nil
+            indicatorSizeTo = .zero
+            indicatorSizeAnimStart = nil
+        }
+
         positionIndicatorNearCursor()
+        if let panel = indicatorPanel, panel.frame.width < 1 || panel.frame.height < 1 {
+            let mouse = NSEvent.mouseLocation
+            panel.setFrame(
+                NSRect(x: mouse.x + 14, y: mouse.y + 14, width: 48, height: 32),
+                display: true
+            )
+        }
         indicatorPanel?.orderFrontRegardless()
         startIndicatorTracking()
+        revealIndicatorIfLaidOut()
     }
 
     private func updateIndicator(state: IndicatorState) {
@@ -355,6 +393,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         indicatorHostingView = nil
         indicatorPanel = nil
         indicatorNeedsInitialFrame = false
+        indicatorSizeFrom = nil
+        indicatorSizeTo = .zero
+        indicatorSizeAnimStart = nil
         indicatorModel.notice = nil
     }
 
@@ -383,13 +424,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         positionIndicatorNearCursor()
+        revealIndicatorIfLaidOut()
+    }
 
-        if indicatorNeedsInitialFrame {
-            indicatorHostingView?.layoutSubtreeIfNeeded()
-            indicatorPanel?.displayIfNeeded()
-            indicatorPanel?.alphaValue = 1
-            indicatorNeedsInitialFrame = false
-        }
+    private func revealIndicatorIfLaidOut() {
+        guard indicatorNeedsInitialFrame,
+            let panel = indicatorPanel,
+            let hostingView = indicatorHostingView
+        else { return }
+
+        hostingView.layoutSubtreeIfNeeded()
+        panel.displayIfNeeded()
+        let contentSize = hostingView.fittingSize
+        guard contentSize.width > 0, contentSize.height > 0 else { return }
+
+        positionIndicatorNearCursor()
+        panel.alphaValue = 1
+        indicatorNeedsInitialFrame = false
     }
 
     private func positionIndicatorNearCursor() {
@@ -399,7 +450,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         else { return }
 
         hostingView.layoutSubtreeIfNeeded()
-        let contentSize = hostingView.fittingSize
+        let targetSize = hostingView.fittingSize
+        guard targetSize.width > 0, targetSize.height > 0 else { return }
+
+        let contentSize = interpolatedIndicatorSize(toward: targetSize)
         let origin = FloatingIndicatorPositioner.origin(
             cursor: NSEvent.mouseLocation,
             contentSize: contentSize,
@@ -410,6 +464,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard panel.frame != frame else { return }
 
         panel.setFrame(frame, display: true)
+    }
+
+    private func interpolatedIndicatorSize(toward target: CGSize) -> CGSize {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion || indicatorNeedsInitialFrame {
+            indicatorSizeFrom = nil
+            indicatorSizeTo = target
+            indicatorSizeAnimStart = nil
+            return target
+        }
+
+        if !FloatingIndicatorSizeAnimator.sizesAreNearlyEqual(target, indicatorSizeTo) {
+            let current = indicatorPanel?.frame.size ?? target
+            indicatorSizeFrom =
+                current.width > 0 && current.height > 0 ? current : target
+            indicatorSizeTo = target
+            indicatorSizeAnimStart = CACurrentMediaTime()
+        }
+
+        guard let from = indicatorSizeFrom, let start = indicatorSizeAnimStart else {
+            return target
+        }
+
+        let elapsed = CACurrentMediaTime() - start
+        if elapsed >= FloatingIndicatorSizeAnimator.duration {
+            indicatorSizeFrom = nil
+            indicatorSizeAnimStart = nil
+            return target
+        }
+
+        return FloatingIndicatorSizeAnimator.size(from: from, to: target, elapsed: elapsed)
     }
 
     private func screenContainingMouse() -> NSScreen? {
@@ -504,6 +588,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         if let button = statusItem.button {
             button.image = menuBarImage(for: .idle)
+            button.toolTip = menuBarTooltip(for: .idle)
             button.action = #selector(statusBarButtonClicked)
         }
     }
@@ -512,32 +597,52 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let button = statusItem.button else { return }
         button.image = menuBarImage(for: state)
         button.contentTintColor = nil
-        button.toolTip = state == .recording ? "Inputalk is recording" : "Inputalk"
+        button.toolTip = menuBarTooltip(for: state)
+    }
+
+    private func menuBarTooltip(for state: AppState) -> String {
+        let name = AppIdentity.isDevelopmentBuild ? "Inputalk Dev" : "Inputalk"
+        return state == .recording ? "\(name) is recording" : name
     }
 
     private func menuBarImage(for state: AppState) -> NSImage? {
+        let image: NSImage?
         switch state {
         case .idle, .recording:
-            // Custom waveform icon from SPM resource bundle
             if let url = Bundle.module.url(forResource: "MenuBarIcon", withExtension: "png"),
-                let image = NSImage(contentsOf: url)
+                let loaded = NSImage(contentsOf: url)
             {
-                image.isTemplate = true
-                image.size = NSSize(width: 18, height: 18)
-                return image
+                image = loaded
+            } else {
+                image = NSImage(
+                    systemSymbolName: "waveform", accessibilityDescription: "Inputalk")
             }
-            // Fallback to SF Symbol
-            let image = NSImage(
-                systemSymbolName: "waveform", accessibilityDescription: "Inputalk")
-            image?.isTemplate = true
-            return image
         case .processing:
-            let image = NSImage(
+            image = NSImage(
                 systemSymbolName: "ellipsis.circle",
                 accessibilityDescription: "Transcribing")
-            image?.isTemplate = true
-            return image
         }
+        guard let image else { return nil }
+        image.size = NSSize(width: 18, height: 18)
+        if AppIdentity.isDevelopmentBuild {
+            return Self.orangeMenuBarImage(from: image)
+        }
+        image.isTemplate = true
+        return image
+    }
+
+    /// Menu bar template images are always drawn black or white. Recolor into a
+    /// non-template image so the Dev build can stay orange.
+    private static func orangeMenuBarImage(from image: NSImage) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let colored = NSImage(size: size, flipped: false) { rect in
+            image.draw(in: rect)
+            NSColor.systemOrange.setFill()
+            rect.fill(using: .sourceIn)
+            return true
+        }
+        colored.isTemplate = false
+        return colored
     }
 
     @objc private func statusBarButtonClicked(_ sender: NSStatusBarButton) {
@@ -748,6 +853,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         NSApp.setActivationPolicy(.regular)
+        applyDevelopmentDockBadge()
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -776,6 +882,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         NSApp.setActivationPolicy(.regular)
+        applyDevelopmentDockBadge()
         onboardingWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -795,6 +902,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let showInDock = UserDefaults.standard.bool(forKey: Defaults.showInDock)
         let activeWindow = NSApp.keyWindow
         NSApp.setActivationPolicy(showInDock ? .regular : .accessory)
+        if showInDock {
+            applyDevelopmentDockBadge()
+        }
         Task { @MainActor in
             activeWindow?.makeKeyAndOrderFront(nil)
             NSApp.activate()
@@ -803,6 +913,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
+    }
+
+    private func applyDevelopmentDockBadge() {
+        guard AppIdentity.isDevelopmentBuild, !didApplyDevelopmentDockBadge else { return }
+
+        let source = NSApp.applicationIconImage ?? NSImage(size: NSSize(width: 256, height: 256))
+        let canvas = NSSize(width: 256, height: 256)
+        let badged = NSImage(size: canvas, flipped: false) { rect in
+            source.draw(in: rect)
+
+            let diameter = min(rect.width, rect.height) * 0.26
+            let inset = min(rect.width, rect.height) * 0.1
+            let dot = NSRect(
+                x: rect.maxX - diameter - inset,
+                y: rect.maxY - diameter - inset,
+                width: diameter,
+                height: diameter
+            )
+            let ring = NSBezierPath(ovalIn: dot.insetBy(dx: -diameter * 0.08, dy: -diameter * 0.08))
+            NSColor.white.setFill()
+            ring.fill()
+            NSColor.systemOrange.setFill()
+            NSBezierPath(ovalIn: dot).fill()
+            return true
+        }
+
+        NSApp.applicationIconImage = badged
+        NSApp.dockTile.display()
+        didApplyDevelopmentDockBadge = true
     }
 }
 
