@@ -1,11 +1,13 @@
+import CoreML
 import Foundation
+@preconcurrency import WhisperKit
 
 enum ModelState: Equatable {
     case unloaded
     case checking
     case downloading(progress: Double)
-    case optimizing(progress: Double)
-    case loading(progress: Double)
+    case optimizing
+    case loading
     case ready
     case error(String)
 
@@ -92,6 +94,11 @@ enum ModelLifecycle {
         }
     }
 
+    static func isBrokenInstallError(_ error: Error) -> Bool {
+        if case WhisperError.modelsUnavailable = error { return true }
+        return (error as NSError).domain == MLModelErrorDomain
+    }
+
     static func defaultFileExists(_ url: URL) -> Bool {
         guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
             values.isRegularFile == true
@@ -121,7 +128,7 @@ enum ModelLifecycle {
         return "Preparing \(displayName(for: selected)) - using \(displayName(for: loaded))"
     }
 
-    /// Core ML does not report load progress. This is completed stages / total stages.
+    /// Formats the download's completed fraction for display.
     static func percentText(from progress: Double) -> String {
         let clamped = min(max(progress, 0), 1)
         return "\(Int((clamped * 100).rounded()))%"

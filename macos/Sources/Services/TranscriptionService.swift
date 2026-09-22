@@ -76,14 +76,9 @@ class TranscriptionService: ObservableObject {
         ModelLifecycle.shouldPublish(requestID: generation, latestRequestID: loadGeneration)
     }
 
-    private func isCurrent(_ generation: Int) -> Bool {
-        isLatest(generation) && !Task.isCancelled
-    }
-
-    private func abandonIncompleteInstall(_ variant: String) {
-        guard !ModelLifecycle.isInstalled(variant: variant, modelsDirectory: Self.modelsDirectory)
-        else { return }
-        discardInstall(variant)
+    private func checkCurrent(_ generation: Int) throws {
+        try Task.checkCancellation()
+        guard isLatest(generation) else { throw CancellationError() }
     }
 
     private func discardInstall(_ variant: String) {
@@ -98,50 +93,39 @@ class TranscriptionService: ObservableObject {
     }
 
     private func runLoad(variant: String, generation: Int) async {
-        guard isCurrent(generation) else { return }
-
-        if ModelLifecycle.shouldReuseLoadedModel(selected: variant, loaded: loadedModel),
-            whisperKit != nil
-        {
-            modelState = .ready
-            return
-        }
-
-        modelState = .checking
-        try? FileManager.default.createDirectory(
-            at: Self.modelsDirectory, withIntermediateDirectories: true)
-
-        let checkStart = CFAbsoluteTimeGetCurrent()
-        var needsDownload = ModelLifecycle.shouldDownload(
-            variant: variant,
-            modelsDirectory: Self.modelsDirectory
-        )
-        let checkMs = (CFAbsoluteTimeGetCurrent() - checkStart) * 1000
-
         do {
+            try checkCurrent(generation)
+
+            if ModelLifecycle.shouldReuseLoadedModel(selected: variant, loaded: loadedModel),
+                whisperKit != nil
+            {
+                modelState = .ready
+                return
+            }
+
+            modelState = .checking
+            try? FileManager.default.createDirectory(
+                at: Self.modelsDirectory, withIntermediateDirectories: true)
+
+            let checkStart = CFAbsoluteTimeGetCurrent()
+            let needsDownload = ModelLifecycle.shouldDownload(
+                variant: variant,
+                modelsDirectory: Self.modelsDirectory
+            )
+            let checkMs = (CFAbsoluteTimeGetCurrent() - checkStart) * 1000
             var modelFolder = ModelLifecycle.modelFolder(
                 for: variant,
                 modelsDirectory: Self.modelsDirectory
             )
-            var downloadMs: Double?
 
             if !needsDownload {
                 do {
-                    try Task.checkCancellation()
-                    guard isCurrent(generation) else {
-                        abandonIncompleteInstall(variant)
-                        return
-                    }
                     let prepared = try await prepareKit(
                         modelFolder: modelFolder,
                         variant: variant,
                         generation: generation
                     )
-                    try Task.checkCancellation()
-                    guard isCurrent(generation) else {
-                        abandonIncompleteInstall(variant)
-                        return
-                    }
+                    try checkCurrent(generation)
                     whisperKit = prepared.kit
                     loadedModel = variant
                     modelState = .ready
@@ -154,49 +138,32 @@ class TranscriptionService: ObservableObject {
                     )
                     return
                 } catch {
-                    if isCancelledError(error) || !isCurrent(generation) {
-                        abandonIncompleteInstall(variant)
-                        return
-                    }
+                    try checkCurrent(generation)
+                    guard ModelLifecycle.isBrokenInstallError(error) else { throw error }
                     // Local files looked complete but Core ML rejected them.
-                    // Delete so Retry actually re-downloads instead of looping
-                    // the same broken bundle.
+                    // Remove the broken bundle before downloading a replacement.
                     discardInstall(variant)
-                    needsDownload = true
-                    modelFolder = ModelLifecycle.modelFolder(
-                        for: variant,
-                        modelsDirectory: Self.modelsDirectory
-                    )
                 }
             }
 
-            if needsDownload {
-                guard isCurrent(generation) else {
-                    abandonIncompleteInstall(variant)
-                    return
+            try checkCurrent(generation)
+            modelState = .downloading(progress: 0)
+            let downloadStart = CFAbsoluteTimeGetCurrent()
+            let progressCallback: @Sendable (Progress) -> Void = { [weak self] progress in
+                let fraction = progress.fractionCompleted
+                Task { @MainActor [weak self] in
+                    guard let self, self.isLatest(generation) else { return }
+                    self.modelState = .downloading(progress: fraction)
                 }
-                modelState = .downloading(progress: 0)
-                let downloadStart = CFAbsoluteTimeGetCurrent()
-                let progressCallback: @Sendable (Progress) -> Void = { [weak self] progress in
-                    let fraction = progress.fractionCompleted
-                    Task { @MainActor [weak self] in
-                        guard let self, self.isLatest(generation) else { return }
-                        self.modelState = .downloading(progress: fraction)
-                    }
-                }
-                modelFolder = try await WhisperKit.download(
-                    variant: variant,
-                    downloadBase: Self.modelsDirectory,
-                    progressCallback: progressCallback
-                )
-                downloadMs = (CFAbsoluteTimeGetCurrent() - downloadStart) * 1000
             }
+            modelFolder = try await WhisperKit.download(
+                variant: variant,
+                downloadBase: Self.modelsDirectory,
+                progressCallback: progressCallback
+            )
+            let downloadMs = (CFAbsoluteTimeGetCurrent() - downloadStart) * 1000
 
-            try Task.checkCancellation()
-            guard isCurrent(generation) else {
-                abandonIncompleteInstall(variant)
-                return
-            }
+            try checkCurrent(generation)
 
             let prepared = try await prepareKit(
                 modelFolder: modelFolder,
@@ -204,11 +171,7 @@ class TranscriptionService: ObservableObject {
                 generation: generation
             )
 
-            try Task.checkCancellation()
-            guard isCurrent(generation) else {
-                abandonIncompleteInstall(variant)
-                return
-            }
+            try checkCurrent(generation)
 
             whisperKit = prepared.kit
             loadedModel = variant
@@ -221,14 +184,15 @@ class TranscriptionService: ObservableObject {
                 loadS: prepared.loadS
             )
         } catch {
-            if isCancelledError(error) || !isCurrent(generation) {
-                abandonIncompleteInstall(variant)
-                return
+            if isCancelledError(error) || Task.isCancelled || !isLatest(generation) { return }
+            if ModelLifecycle.isBrokenInstallError(error) {
+                discardInstall(variant)
+                modelState = .error(
+                    "Couldn't load \(ModelLifecycle.displayName(for: variant)). Press Retry to download it again."
+                )
+            } else {
+                modelState = .error(error.localizedDescription)
             }
-            discardInstall(variant)
-            modelState = .error(
-                "Couldn't load \(ModelLifecycle.displayName(for: variant)). Press Retry to download it again."
-            )
         }
     }
 
@@ -245,115 +209,32 @@ class TranscriptionService: ObservableObject {
             download: false
         )
 
-        try Task.checkCancellation()
-        guard isCurrent(generation) else { throw CancellationError() }
+        try checkCurrent(generation)
 
         // Core ML device specialization can take minutes on the first Small
         // or Medium load. WhisperKit prewarm does that pass, unloads, then
         // loadModels reads the cache. Skip prewarm for variants already
         // specialized this process so switching back is not 2x.
         // ponytail: Core ML specialization still runs until it finishes once
-        // started. Percent is completed compiled-model stages, not a Core ML
-        // byte/time callback.
+        // started. WhisperKit does not expose progress for this work.
         var prewarmS: Double?
         if !prewarmedVariants.contains(variant) {
+            modelState = .optimizing
             let prewarmStart = CFAbsoluteTimeGetCurrent()
-            try await runCompiledModelPass(kit: kit, prewarm: true, generation: generation)
-            try Task.checkCancellation()
-            guard isCurrent(generation) else { throw CancellationError() }
+            try await kit.prewarmModels()
+            try checkCurrent(generation)
             prewarmS = CFAbsoluteTimeGetCurrent() - prewarmStart
             prewarmedVariants.insert(variant)
         }
 
-        try Task.checkCancellation()
-        guard isCurrent(generation) else { throw CancellationError() }
+        try checkCurrent(generation)
 
+        modelState = .loading
         let loadStart = CFAbsoluteTimeGetCurrent()
-        try await runCompiledModelPass(kit: kit, prewarm: false, generation: generation)
-        try Task.checkCancellation()
-        guard isCurrent(generation) else { throw CancellationError() }
+        try await kit.loadModels()
+        try checkCurrent(generation)
         let loadS = CFAbsoluteTimeGetCurrent() - loadStart
         return (kit, prewarmS, loadS)
-    }
-
-    /// Same model order as WhisperKit.loadModels. Each compiled model is a black
-    /// box to Core ML, so progress only advances when a stage finishes.
-    private func runCompiledModelPass(
-        kit: WhisperKit,
-        prewarm: Bool,
-        generation: Int
-    ) async throws {
-        guard let path = kit.modelFolder else {
-            throw WhisperError.modelsUnavailable("Model folder is not set.")
-        }
-
-        let logmelUrl = ModelUtilities.detectModelURL(inFolder: path, named: "MelSpectrogram")
-        let encoderUrl = ModelUtilities.detectModelURL(inFolder: path, named: "AudioEncoder")
-        let decoderUrl = ModelUtilities.detectModelURL(inFolder: path, named: "TextDecoder")
-
-        for item in [logmelUrl, encoderUrl, decoderUrl] {
-            if !FileManager.default.fileExists(atPath: item.path) {
-                throw WhisperError.modelsUnavailable("Model file not found at \(item.path)")
-            }
-        }
-
-        let total = 3 + (prewarm ? 0 : 1)
-        var completed = 0
-
-        func publish() {
-            let progress = Double(completed) / Double(max(total, 1))
-            if prewarm {
-                modelState = .optimizing(progress: progress)
-            } else {
-                modelState = .loading(progress: progress)
-            }
-        }
-
-        publish()
-
-        if let featureExtractor = kit.featureExtractor as? WhisperMLModel {
-            try await featureExtractor.loadModel(
-                at: logmelUrl,
-                computeUnits: kit.modelCompute.melCompute,
-                prewarmMode: prewarm
-            )
-        }
-        completed += 1
-        try Task.checkCancellation()
-        guard isCurrent(generation) else { throw CancellationError() }
-        publish()
-
-        if let textDecoder = kit.textDecoder as? WhisperMLModel {
-            try await textDecoder.loadModel(
-                at: decoderUrl,
-                computeUnits: kit.modelCompute.textDecoderCompute,
-                prewarmMode: prewarm
-            )
-        }
-        completed += 1
-        try Task.checkCancellation()
-        guard isCurrent(generation) else { throw CancellationError() }
-        publish()
-
-        if let audioEncoder = kit.audioEncoder as? WhisperMLModel {
-            try await audioEncoder.loadModel(
-                at: encoderUrl,
-                computeUnits: kit.modelCompute.audioEncoderCompute,
-                prewarmMode: prewarm
-            )
-        }
-        completed += 1
-        try Task.checkCancellation()
-        guard isCurrent(generation) else { throw CancellationError() }
-        publish()
-
-        if !prewarm {
-            try await kit.loadTokenizerIfNeeded()
-            completed += 1
-            try Task.checkCancellation()
-            guard isCurrent(generation) else { throw CancellationError() }
-            publish()
-        }
     }
 
     private func logModelLoad(

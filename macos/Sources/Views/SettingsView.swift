@@ -513,8 +513,8 @@ struct SettingsView: View {
         switch transcription.modelState {
         case .ready: return "Ready"
         case .checking: return "Checking..."
-        case .loading(let p): return "Loading \(ModelLifecycle.percentText(from: p))"
-        case .optimizing(let p): return "Optimizing for this Mac \(ModelLifecycle.percentText(from: p))"
+        case .loading: return "Loading..."
+        case .optimizing: return "Optimizing for this Mac"
         case .downloading(let p): return "Downloading \(ModelLifecycle.percentText(from: p))"
         case .error(let msg): return msg
         case .unloaded: return "Not loaded"

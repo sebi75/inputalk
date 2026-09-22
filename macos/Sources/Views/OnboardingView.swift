@@ -301,16 +301,10 @@ struct OnboardingView: View {
             }
         case .checking:
             onboardingBusyStatus("Checking for model...")
-        case .loading(let progress):
-            onboardingProgressStatus(
-                "Loading model \(ModelLifecycle.percentText(from: progress))",
-                progress: progress
-            )
-        case .optimizing(let progress):
-            onboardingProgressStatus(
-                "Optimizing for this Mac \(ModelLifecycle.percentText(from: progress))",
-                progress: progress
-            )
+        case .loading:
+            onboardingBusyStatus("Loading model...")
+        case .optimizing:
+            onboardingBusyStatus("Optimizing for this Mac...")
         case .downloading(let progress):
             onboardingProgressStatus(
                 "Downloading \"\(transcription.selectedModel)\" \(ModelLifecycle.percentText(from: progress))",

@@ -1,3 +1,5 @@
+import CoreML
+import WhisperKit
 import XCTest
 @testable import Inputalk
 
@@ -92,7 +94,15 @@ final class ModelLifecycleTests: XCTestCase {
         )
     }
 
-    func testPercentTextUsesCompletedStages() {
+    func testBrokenInstallErrorClassification() {
+        XCTAssertTrue(ModelLifecycle.isBrokenInstallError(WhisperError.modelsUnavailable()))
+        XCTAssertTrue(ModelLifecycle.isBrokenInstallError(NSError(domain: MLModelErrorDomain, code: 1)))
+        XCTAssertFalse(ModelLifecycle.isBrokenInstallError(URLError(.notConnectedToInternet)))
+        XCTAssertFalse(ModelLifecycle.isBrokenInstallError(WhisperError.tokenizerUnavailable()))
+        XCTAssertFalse(ModelLifecycle.isBrokenInstallError(CancellationError()))
+    }
+
+    func testPercentTextUsesDownloadProgress() {
         XCTAssertEqual(ModelLifecycle.percentText(from: 0), "0%")
         XCTAssertEqual(ModelLifecycle.percentText(from: 0.33), "33%")
         XCTAssertEqual(ModelLifecycle.percentText(from: 1), "100%")
