@@ -61,7 +61,9 @@ cd macos
 
 ### Sparkle updates
 
-Inputalk uses [Sparkle](https://sparkle-project.org/) for app updates. The DMG, the Sparkle
+Inputalk uses [Sparkle](https://sparkle-project.org/) for app updates. Versions 0.2.0 and
+later update themselves. 0.1.0 shipped without Sparkle, so anyone still on it must download
+the latest DMG once from [Releases](https://github.com/sebi75/inputalk/releases/latest). The DMG, the Sparkle
 `appcast.xml`, and the website `latest.json` manifest are all published as GitHub Release
 assets (no S3). Publishing uses the [`gh`](https://cli.github.com/) CLI.
 
